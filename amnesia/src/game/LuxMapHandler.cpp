@@ -1378,6 +1378,44 @@ void cLuxMapHandler::UpdateCoopPlayerBlockers(float afTimeStep)
 	const bool bFull  = bWant && CoopPlayerCollisionEffective();
 	const bool bBoost = bWant && CoopCrouchBoostEffective();
 
+	////////////////////////////////////////////////////////////////////////
+	// BASELINE character-vs-character collision.
+	//
+	// This is what actually decides whether the two players walk through each
+	// other, and until now nothing touched it. iCharacterBody::mbCollideCharacter
+	// defaults TRUE, so both players blocked each other whatever the option said
+	// -- the blockers below only ever added FULL-HEIGHT blocking and crouch
+	// boosting ON TOP of a baseline that was always there. "Enable Player
+	// Collisions" did not control the thing its name promises.
+	//
+	// Done as a pairwise exception -- each player's movement ignores the OTHER
+	// player's body, and nothing else changes.
+	//
+	// The first attempt cleared SetCollideCharacter on the players' bodies. That
+	// worked, but the flag is shared with every other query of that body, so
+	// thrown props stopped reacting to players properly. Collide flags cannot
+	// express it either: they are a match-mask, so making two bodies miss each
+	// other means making their flag sets disjoint, which breaks everything else
+	// they are meant to collide with.
+	//
+	// iCharacterBody::SetIgnoreBody names one single body to pass through, so
+	// monsters still block, props still bounce, and only these two pass through
+	// each other.
+	//
+	// Re-applied every tick on purpose: crouching swaps which body is current.
+	if(bWant)
+	{
+		for(int i=0; i<2; ++i)
+		{
+			iCharacterBody *pMine  = pPlayers[i]->GetCharacterBody();
+			iCharacterBody *pTheirs = pPlayers[1-i]->GetCharacterBody();
+
+			if(pMine==NULL) continue;
+
+			pMine->SetIgnoreBody(bFull ? NULL : (pTheirs ? pTheirs->GetCurrentBody() : NULL));
+		}
+	}
+
 	if(bWant==false || (bFull==false && bBoost==false))
 	{
 		for(int i=0; i<2; ++i)

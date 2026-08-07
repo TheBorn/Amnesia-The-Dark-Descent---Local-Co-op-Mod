@@ -436,7 +436,8 @@ namespace hpl {
 							bool abCollideCharacter,
 							int alMinPushStrength,
 							tFlag alCollideFlags,
-							bool abDebug)
+							bool abDebug,
+							iPhysicsBody *apSkipBody2)
 	{
 		cCollideData collideData;
 
@@ -464,6 +465,12 @@ namespace hpl {
 			if(pBody->IsActive()==false)continue;
 			if(pBody->IsCharacter() && abCollideCharacter==false) continue;
 			if(pBody == apSkipBody) continue;
+			//A second body this sweep ignores. Exists so one character can be
+			//told to pass through ONE named other body without touching any of
+			//the flags -- those are shared with everything else that queries the
+			//body, so using them for a pairwise exception has side effects
+			//elsewhere (props stop bouncing off a player, for one).
+			if(apSkipBody2 && pBody == apSkipBody2) continue;
 			if(abSkipStatic && pBody->GetMass()==0 && pBody->IsCharacter()==false) continue;
 			if(abIsCharacter && pBody->GetCollideCharacter()==false) continue;
 			if(abIsCharacter==false && pBody->GetCollide()==false) continue;

@@ -681,7 +681,18 @@ void cLuxDebugHandler::RenderSolid(cRendererCallbackFunctions* apFunctions)
 			{
 				iPhysicsBody *pBody = it.Next();
 				if(pBody == NULL) continue;
-				if(pBody == pSkipP1 || pBody == pSkipP2) continue;
+
+				//The players' own character bodies get drawn too, in yellow.
+				//
+				//They used to be skipped -- you are stood inside your own and it
+				//fills the view -- but that hid the exact thing you turn this on
+				//to check when two players will not walk through each other. A
+				//tool that refuses to draw the suspect is worse than a noisy one.
+				if(pBody == pSkipP1 || pBody == pSkipP2)
+				{
+					pBody->RenderDebugGeometry(pGfx, cColor(1.0f,0.9f,0.2f,1));
+					continue;
+				}
 
 				//Green for something that can move, grey for level geometry --
 				//the distinction you are usually looking for.

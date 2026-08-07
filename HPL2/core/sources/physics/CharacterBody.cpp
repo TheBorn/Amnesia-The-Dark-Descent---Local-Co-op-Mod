@@ -293,6 +293,7 @@ namespace hpl {
 		
 		mbActive = true;
 		mbCollideCharacter = true;
+		mpIgnoreBody = NULL;
 		mbTestCollision = true;
 
 		mbEntitySmoothYPos = false;
@@ -2272,7 +2273,7 @@ namespace hpl {
 		return mpWorld->CheckShapeWorldCollision(apPushBackVector, pShape, cMath::MatrixTranslate(avPos),
 												mpCurrentBody, false, true, 
 												apCallback, true,mlMinBodyPushStrength, 
-												mlCollideFlags, false);
+												mlCollideFlags, false, mpIgnoreBody);
 	}
 	
 	//-----------------------------------------------------------------------

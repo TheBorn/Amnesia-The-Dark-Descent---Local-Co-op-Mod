@@ -148,6 +148,19 @@ namespace hpl {
 		void SetCollideCharacter(bool abX);
 		bool GetCollideCharacter(){ return mbCollideCharacter;}
 
+		/**
+		 * One body this character's movement passes straight through.
+		 *
+		 * For split-screen co-op, where the two players must not block each
+		 * other while still being blocked by monsters, and while props still
+		 * bounce off them exactly as they always did. Collide flags cannot
+		 * express that -- they are a shared match-mask, not an identity -- and
+		 * clearing the target's CollideCharacter changes how everything else
+		 * sees it, props included.
+		 */
+		void SetIgnoreBody(iPhysicsBody *apBody){ mpIgnoreBody = apBody; }
+		iPhysicsBody* GetIgnoreBody(){ return mpIgnoreBody; }
+
 		void SetTestCollision(bool abX);
 		bool GetTestCollision(){return mbTestCollision;}
 
@@ -388,6 +401,7 @@ namespace hpl {
 		bool mbActive;
 
 		bool mbCollideCharacter;
+		iPhysicsBody *mpIgnoreBody;
 
 		bool mbTestCollision;
 
