@@ -70,17 +70,23 @@ folders, so stories can live anywhere on your machine instead of only in the gam
 CustomStoryPath = "custom_stories"
 ```
 
-To add more, wrap the whole value in **single** quotes and put each folder in double
-quotes inside it — the file is XML, so the outer pair has to be the single ones:
+Add as many as you like, each in its own quotes:
 
 ```xml
-CustomStoryPath = '"custom_stories", "D:\Amnesia Stories", "E:\Steam\steamapps\workshop\content\57300"'
+CustomStoryPath = "custom_stories", "D:\Amnesia Stories", "E:\SteamLibrary\steamapps\workshop\content\57300"
 ```
 
-Quoting each entry is optional if none of your paths contain a comma:
+Putting the whole list inside a single pair of quotes does the same thing:
 
 ```xml
 CustomStoryPath = "custom_stories, D:\Amnesia Stories"
+```
+
+If one of your paths contains a comma of its own, that one needs quotes the splitter can
+see — wrap the whole value in **single** quotes so the double ones survive into it:
+
+```xml
+CustomStoryPath = '"custom_stories", "D:\Odds, Ends and Stories"'
 ```
 
 Forward or back slashes both work, folders that do not exist are skipped silently, and
