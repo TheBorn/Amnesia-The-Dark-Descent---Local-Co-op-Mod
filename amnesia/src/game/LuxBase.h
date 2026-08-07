@@ -130,6 +130,23 @@ public:
 	 * Starting the story raises the map handler's flag from this value.
 	 */
 	bool mbSupportsCoop;
+
+	/**
+	 * The story's Co-op Options, declared in custom_story_settings.cfg.
+	 *
+	 * The same five values the SetCoopAllow* script functions set, so an author
+	 * who only wants to configure co-op does not have to write a global.hps to
+	 * do it. Applied once as the story starts; a script that sets them later
+	 * still wins, which is what makes mid-play changes possible.
+	 *
+	 * Every default here is the engine's own, so a settings file that mentions
+	 * none of them changes nothing.
+	 */
+	bool  mbCoopAllowCrouchBoost;
+	bool  mbCoopAllowPlayerCollision;
+	bool  mbCoopAllowMonsterKilling;
+	float mfCoopMonsterPropDamageMul;
+	bool  mbCoopGlobalLantern;
 };
 
 typedef std::vector<cLuxCustomStorySettings*> tCustomStorySettingsVec;

@@ -157,6 +157,29 @@ is entered:
 />
 ```
 
+The same file can set the Co-op Options, so a story that only wants to configure co-op
+does not need a `global.hps` to do it:
+
+```xml
+<Main
+  ...
+  SupportsCoop="true"
+
+  CoopAllowCrouchBoost="false"
+  CoopAllowPlayerCollision="false"
+  CoopAllowMonsterKilling="false"
+  CoopMonsterPropDamageMul="10"
+  CoopGlobalLantern="true"
+/>
+```
+
+Those are the defaults, so a settings file that mentions none of them behaves exactly as
+if they were absent. What each one does is described under **Co-op options** below.
+
+These are applied as the story starts, *before* the global script runs — so the file is
+your starting position and a script that calls the matching `SetCoopAllow*` function
+later overrides it. That is what lets you change them mid-play.
+
 A story that declares support is started without the forced-co-op warning, and the
 compatibility options above are skipped entirely — the engine assumes the story addresses
 each player itself in its maps' HPS scripts, and the Co-op options below become the ones

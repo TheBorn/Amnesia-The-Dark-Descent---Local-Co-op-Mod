@@ -178,6 +178,12 @@ void ProgLog(eLuxProgressLogLevel aLevel, const tString& asMessage)
 cLuxCustomStorySettings::cLuxCustomStorySettings()
 {
 	mbSupportsCoop = false;
+
+	mbCoopAllowCrouchBoost = false;
+	mbCoopAllowPlayerCollision = false;
+	mbCoopAllowMonsterKilling = false;
+	mfCoopMonsterPropDamageMul = 10.0f;
+	mbCoopGlobalLantern = true;
 }
 
 cLuxCustomStorySettings::cLuxCustomStorySettings(cLuxCustomStorySettings* apStory)
@@ -195,6 +201,12 @@ cLuxCustomStorySettings::cLuxCustomStorySettings(cLuxCustomStorySettings* apStor
 	msStartPos = apStory->msStartPos;
 
 	mbSupportsCoop = apStory->mbSupportsCoop;
+
+	mbCoopAllowCrouchBoost = apStory->mbCoopAllowCrouchBoost;
+	mbCoopAllowPlayerCollision = apStory->mbCoopAllowPlayerCollision;
+	mbCoopAllowMonsterKilling = apStory->mbCoopAllowMonsterKilling;
+	mfCoopMonsterPropDamageMul = apStory->mfCoopMonsterPropDamageMul;
+	mbCoopGlobalLantern = apStory->mbCoopGlobalLantern;
 }
 
 cLuxCustomStorySettings::~cLuxCustomStorySettings()
@@ -260,6 +272,14 @@ bool cLuxCustomStorySettings::CreateFromPath(const tWString& asPath)
 		//Every story that exists says nothing here and so reads as false, which
 		//is what makes the custom story page warn before forcing co-op on it.
 		mbSupportsCoop = pCustomStoryCfg->GetBool("Main", "SupportsCoop", false);
+
+		//The story's Co-op Options. Defaults are the engine's own, so a settings
+		//file that mentions none of them behaves exactly as before.
+		mbCoopAllowCrouchBoost     = pCustomStoryCfg->GetBool("Main", "CoopAllowCrouchBoost", false);
+		mbCoopAllowPlayerCollision = pCustomStoryCfg->GetBool("Main", "CoopAllowPlayerCollision", false);
+		mbCoopAllowMonsterKilling  = pCustomStoryCfg->GetBool("Main", "CoopAllowMonsterKilling", false);
+		mfCoopMonsterPropDamageMul = pCustomStoryCfg->GetFloat("Main", "CoopMonsterPropDamageMul", 10.0f);
+		mbCoopGlobalLantern        = pCustomStoryCfg->GetBool("Main", "CoopGlobalLantern", true);
 	}
 	else
 	{
@@ -672,6 +692,19 @@ bool cLuxBase::StartGame(const tString& asFile, const tString& asFolder, const t
 	//forced-co-op warning appears -- and a script cannot answer a question that
 	//is asked before it runs.
 	mpMapHandler->SetCoopStorySupport(mpCustomStory ? mpCustomStory->mbSupportsCoop : false);
+
+	//And the story's Co-op Options, from the same file. Before the global
+	//script runs, so an OnGameStart that calls the SetCoopAllow* functions
+	//overrides them rather than being overridden by them -- the file is the
+	//starting position, the script is the running state.
+	if(mpCustomStory)
+	{
+		mpMapHandler->SetCoopOptCrouchBoost(mpCustomStory->mbCoopAllowCrouchBoost);
+		mpMapHandler->SetCoopOptPlayerCollision(mpCustomStory->mbCoopAllowPlayerCollision);
+		mpMapHandler->SetCoopOptMonsterKilling(mpCustomStory->mbCoopAllowMonsterKilling);
+		mpMapHandler->SetCoopOptMonsterDamageMul(mpCustomStory->mfCoopMonsterPropDamageMul);
+		mpMapHandler->SetCoopOptGlobalLantern(mpCustomStory->mbCoopGlobalLantern);
+	}
 
 	//////////////////
 	//Global script
