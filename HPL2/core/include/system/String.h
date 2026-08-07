@@ -219,6 +219,17 @@ namespace hpl {
 		static tWStringVec& GetStringVecW(const tWString &asData, tWStringVec& avVec,tWString *apSeparators=NULL);
 
 		/**
+		 * Get a vector of strings from a comma separated list where an entry may be
+		 * quoted, such as "one, two" or '"one", "C:\Some, Place"'. Only the comma
+		 * separates; whitespace around an entry is dropped and a pair of single or
+		 * double quotes around one is stripped, so an entry that itself contains a
+		 * comma survives by being quoted. Empty entries are skipped.
+		 * \param &asData
+		 * \param avVec a vector the values will be appended to.
+		 */
+		static tStringVec& GetQuotedStringVec(const tString &asData, tStringVec& avVec);
+
+		/**
 		 * Get a vector of Wstrings from a string such as "one, two, three".
 		 * Valid separators are ' ', '\n', '\t' and ','
 		 * \param &asData

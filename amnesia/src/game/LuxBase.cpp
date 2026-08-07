@@ -887,14 +887,43 @@ bool cLuxBase::InitApp()
 	msBaseLanguageFolder = pInitCfg->GetString("Directories","BaseLanguageFolder","");
 	msGameLanguageFolder = pInitCfg->GetString("Directories","GameLanguageFolder","");
 
-	msCustomStoryPath = pInitCfg->GetString("Directories", "CustomStoryPath", "");
+	//CustomStoryPath is a comma separated list, so a player can point the game at
+	//story folders anywhere on the machine and not just at the one next to the exe.
+	//Duplicates are dropped rather than listed twice: the same folder reached by two
+	//different spellings is the normal way that happens.
+	mvCustomStoryPaths.clear();
+	{
+		tStringVec vRawPaths;
+		cString::GetQuotedStringVec(pInitCfg->GetString("Directories", "CustomStoryPath", ""), vRawPaths);
 
-	//57300 is Amnesia: The Dark Descent's Steam app id. The game runs from
-	//<library>/steamapps/common/Amnesia The Dark Descent/ and Steam puts workshop
-	//content in <library>/steamapps/workshop/content/<appid>/, so two levels up and
-	//across is correct wherever the library lives.
-	msWorkshopStoryPath = pInitCfg->GetString("Directories", "WorkshopStoryPath",
-											"../../workshop/content/57300/");
+		tStringVec vKeys;
+		for(size_t i=0; i<vRawPaths.size(); ++i)
+		{
+			//Backslashes are what a player copies out of Explorer; the engine wants
+			//forward ones. cPlatform::FindFoldersInDir goes through the Win32 API so
+			//either works there, but every path in the game is stored with '/'.
+			const tString sPath = cString::ReplaceCharTo(vRawPaths[i], "\\", "/");
+			if(sPath=="") continue;
+
+			//Compare on a lowercased, slash terminated copy so "stories" and
+			//"Stories/" count as the one folder they are.
+			const tString sKey = cString::ToLowerCase(cString::AddSlashAtEnd(sPath));
+
+			bool bAlreadyHave = false;
+			for(size_t j=0; j<vKeys.size(); ++j)
+			{
+				if(vKeys[j]==sKey) { bAlreadyHave = true; break; }
+			}
+
+			if(bAlreadyHave) continue;
+
+			vKeys.push_back(sKey);
+			mvCustomStoryPaths.push_back(sPath);
+		}
+	}
+
+	//The user directory mirrors a single relative folder, so it follows the first entry.
+	msCustomStoryPath = mvCustomStoryPaths.empty() ? "" : mvCustomStoryPaths[0];
 
 	//Various variables
 	msGameName = pInitCfg->GetString("Variables","GameName","");

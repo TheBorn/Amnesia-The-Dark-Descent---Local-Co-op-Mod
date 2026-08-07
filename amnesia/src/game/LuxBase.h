@@ -338,13 +338,17 @@ public:
 	tString msBaseLanguageFolder;
 	tString msGameLanguageFolder;
 
-	tString msCustomStoryPath;
+	//Every folder CustomStoryPath names, in the order it names them. The key takes a
+	//comma separated list and each entry may be quoted, so both
+	//  CustomStoryPath = "custom_stories"
+	//  CustomStoryPath = '"custom_stories", "D:\Amnesia Stories"'
+	//are valid. An entry may be an absolute path anywhere on the machine; the outer
+	//quotes have to be single ones because the init cfg is XML.
+	tStringVec mvCustomStoryPaths;
 
-	//Steam Workshop items, scanned alongside custom_stories. Defaulted rather than
-	//hardcoded: Steam always keeps workshop content in the same library folder as
-	//the game, so ../../workshop/content/<appid>/ is right on every install.
-	//Empty switches workshop scanning off.
-	tString msWorkshopStoryPath;
+	//First entry of mvCustomStoryPaths, empty when the list is. Kept separate
+	//because the user directory mirrors one relative folder name and nothing else.
+	tString msCustomStoryPath;
 
 	tString msCurrentLanguage;
 

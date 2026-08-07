@@ -45,6 +45,35 @@ Custom stories have a **Start Co-op** button on the story page, all of them can 
 **Continue** and **Load Game** need no co-op choice — a save remembers whether it was a
 co-op game, along with the split mode, and restores it.
 
+### Where custom stories are loaded from
+
+`CustomStoryPath` in `redist/config/main_init.cfg` takes a **comma separated list** of
+folders, so stories can live anywhere on your machine instead of only in the game's own
+`custom_stories`. Out of the box it is just the one folder:
+
+```xml
+CustomStoryPath = "custom_stories"
+```
+
+To add more, wrap the whole value in **single** quotes and put each folder in double
+quotes inside it — the file is XML, so the outer pair has to be the single ones:
+
+```xml
+CustomStoryPath = '"custom_stories", "D:\Amnesia Stories", "E:\Steam\steamapps\workshop\content\57300"'
+```
+
+Quoting each entry is optional if none of your paths contain a comma:
+
+```xml
+CustomStoryPath = "custom_stories, D:\Amnesia Stories"
+```
+
+Forward or back slashes both work, folders that do not exist are skipped silently, and
+listing the same folder twice will not list its stories twice. Every folder is scanned
+one level deeper as well, so a folder holding a *collection* of story folders works just
+as well as a story folder itself — that is also how a Steam Workshop content folder gets
+picked up, since its subfolders are numeric ids rather than story names.
+
 ### Default co-op keys
 
 | Key | Action |
@@ -138,7 +167,7 @@ Read with the name alone, set with `name value`.
 | `fov` | `fov 90` | Field of view, 10–170 |
 | `sanityDrainDisabled` | `sanityDrainDisabled 1` | A cheat to stop darkness from draining sanity. |
 | `debugView` | `debugView 1` | Draw script areas as coloured boxes, like the level editor. Inactive areas are dashed. |
-| `showCollider` | `showCollider 1` | Draw every physics shape as wireframe, players excepted, very laggy! |
+| `showCollider` | `showCollider 1` | Draw every physics shape as wireframe, both players' own bodies in yellow, very laggy! |
 | `showWaterLurkers` | `showWaterLurkers 1` | Draw the water lurker model the game normally hides. |
 | `undoArray` | `undoArray 10` | How many deleted entities to keep for `undo` (1–64, default 1) |
 | `consoleUnlockSound` | `consoleUnlockSound sounds/door/unlock_door.ogg` | Sound `unlock` falls back to when a door defines none, not really needed but kept for better feedback on some swing doors. |

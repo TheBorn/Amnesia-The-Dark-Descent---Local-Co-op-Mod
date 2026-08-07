@@ -475,17 +475,16 @@ void cLuxMainMenu_CustomStoryList::PopulateStoryList()
 	PopulateUserDirStoryList();
 #endif
 
-	AddStoriesFromDir(cString::AddSlashAtEndW(cString::To16Char(gpBase->msCustomStoryPath)));
-
 	/////////////////////////////////////////////////
-	// Steam Workshop
+	// Every folder CustomStoryPath lists, in the order it lists them
 	//
-	// Same treatment as custom_stories, one level deeper allowed because a workshop
-	// item folder is a numeric id and not every uploader puts the story at the top
-	// of it. Empty path means workshop scanning is switched off.
-	if(gpBase->msWorkshopStoryPath != "")
+	// One level deeper is allowed throughout: a folder a player points at is as
+	// likely to hold a story per subfolder as to be a story root, and a Steam
+	// Workshop folder is a numeric id with the story somewhere inside it. Costs an
+	// extra directory scan only for a folder that is not a story to begin with.
+	for(size_t i=0; i<gpBase->mvCustomStoryPaths.size(); ++i)
 	{
-		AddStoriesFromDir(cString::AddSlashAtEndW(cString::To16Char(gpBase->msWorkshopStoryPath)), true);
+		AddStoriesFromDir(cString::AddSlashAtEndW(cString::To16Char(gpBase->mvCustomStoryPaths[i])), true);
 	}
 }
 

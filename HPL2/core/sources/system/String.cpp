@@ -1088,6 +1088,59 @@ namespace hpl {
 
 	//-----------------------------------------------------------------------
 
+	tStringVec& cString::GetQuotedStringVec(const tString &asData, tStringVec& avVec)
+	{
+		//Unlike GetStringVec only the comma separates here, because the entries are
+		//meant to be file paths and those contain spaces. A quoted entry keeps any
+		//comma inside it; the quotes themselves are never part of the value.
+		tString sEntry = "";
+		bool bInQuote = false;
+		char cQuote = 0;
+
+		const size_t lLength = asData.size();
+		for(size_t i=0; i<=lLength; ++i)
+		{
+			////////////////////////////////////////////
+			// End of string counts as a separator so the last entry gets flushed
+			const char c = (i==lLength) ? ',' : asData[i];
+
+			if(bInQuote)
+			{
+				if(c==cQuote)	bInQuote = false;
+				else			sEntry += c;
+				continue;
+			}
+
+			if(c=='\"' || c=='\'')
+			{
+				bInQuote = true;
+				cQuote = c;
+				continue;
+			}
+
+			if(c!=',')
+			{
+				sEntry += c;
+				continue;
+			}
+
+			////////////////////////////////////////////
+			// Separator: trim the surrounding whitespace and store
+			size_t lStart = sEntry.find_first_not_of(" \t\n\r");
+			if(lStart!=tString::npos)
+			{
+				size_t lEnd = sEntry.find_last_not_of(" \t\n\r");
+				avVec.push_back(sEntry.substr(lStart, lEnd-lStart+1));
+			}
+
+			sEntry = "";
+		}
+
+		return avVec;
+	}
+
+	//-----------------------------------------------------------------------
+
 	tWStringVec& cString::GetStringVecW(const tWString &asData, tWStringVec& avVec,tWString *apSeparators)
 	{
 		tWString str = _W("");

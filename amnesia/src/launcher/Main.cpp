@@ -132,7 +132,14 @@ bool InitPaths(const tWString& asInitConfigFile, const tWString &asDefaultInitCo
 	//Directories
 	gsBaseLanguageFolder = pInitCfg->GetString("Directories","BaseLanguageFolder","");
 	gsGameLanguageFolder = pInitCfg->GetString("Directories","GameLanguageFolder","");
-    gsCustomStoriesPath = pInitCfg->GetString("Directories","CustomStoryPath","");
+    //CustomStoryPath is a comma separated list of folders for the game to scan. The
+    //launcher only needs it to know which folder gets mirrored into the user
+    //directory, and that is the first entry.
+    {
+        tStringVec vCustomStoryPaths;
+        hpl::cString::GetQuotedStringVec(pInitCfg->GetString("Directories","CustomStoryPath",""), vCustomStoryPaths);
+        gsCustomStoriesPath = vCustomStoryPaths.empty() ? "" : vCustomStoryPaths[0];
+    }
 
 	//Various variables
 	gsGameName = pInitCfg->GetString("Variables","GameName","");
