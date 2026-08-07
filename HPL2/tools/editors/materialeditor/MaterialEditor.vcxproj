@@ -1,0 +1,276 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Project DefaultTargets="Build" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup Label="ProjectConfigurations">
+    <ProjectConfiguration Include="Debug|Win32">
+      <Configuration>Debug</Configuration>
+      <Platform>Win32</Platform>
+    </ProjectConfiguration>
+    <ProjectConfiguration Include="Release|Win32">
+      <Configuration>Release</Configuration>
+      <Platform>Win32</Platform>
+    </ProjectConfiguration>
+    <ProjectConfiguration Include="Debug|x64">
+      <Configuration>Debug</Configuration>
+      <Platform>x64</Platform>
+    </ProjectConfiguration>
+    <ProjectConfiguration Include="Release|x64">
+      <Configuration>Release</Configuration>
+      <Platform>x64</Platform>
+    </ProjectConfiguration>
+  </ItemGroup>
+  <PropertyGroup Label="Globals">
+    <VCProjectVersion>16.0</VCProjectVersion>
+    <Keyword>Win32Proj</Keyword>
+    <ProjectGuid>{865DA9CA-71D7-46CD-97A2-7F7ACBFDB469}</ProjectGuid>
+    <RootNamespace>MaterialEditor</RootNamespace>
+    <WindowsTargetPlatformVersion>10.0</WindowsTargetPlatformVersion>
+  </PropertyGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'" Label="Configuration">
+    <ConfigurationType>Application</ConfigurationType>
+    <UseDebugLibraries>true</UseDebugLibraries>
+    <PlatformToolset>v142</PlatformToolset>
+    <CharacterSet>MultiByte</CharacterSet>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'" Label="Configuration">
+    <ConfigurationType>Application</ConfigurationType>
+    <UseDebugLibraries>false</UseDebugLibraries>
+    <PlatformToolset>v142</PlatformToolset>
+    <WholeProgramOptimization>true</WholeProgramOptimization>
+    <CharacterSet>MultiByte</CharacterSet>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'" Label="Configuration">
+    <ConfigurationType>Application</ConfigurationType>
+    <UseDebugLibraries>true</UseDebugLibraries>
+    <PlatformToolset>v142</PlatformToolset>
+    <CharacterSet>MultiByte</CharacterSet>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'" Label="Configuration">
+    <ConfigurationType>Application</ConfigurationType>
+    <UseDebugLibraries>false</UseDebugLibraries>
+    <PlatformToolset>v142</PlatformToolset>
+    <WholeProgramOptimization>true</WholeProgramOptimization>
+    <CharacterSet>MultiByte</CharacterSet>
+  </PropertyGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.props" />
+  <ImportGroup Label="ExtensionSettings">
+  </ImportGroup>
+  <ImportGroup Label="Shared">
+  </ImportGroup>
+  <ImportGroup Label="PropertySheets" Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
+    <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
+  </ImportGroup>
+  <ImportGroup Label="PropertySheets" Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
+    <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
+  </ImportGroup>
+  <ImportGroup Label="PropertySheets" Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
+    <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
+  </ImportGroup>
+  <ImportGroup Label="PropertySheets" Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
+    <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
+  </ImportGroup>
+  <PropertyGroup Label="UserMacros" />
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
+    <LinkIncremental>true</LinkIncremental>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
+    <LinkIncremental>false</LinkIncremental>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
+    <LinkIncremental>true</LinkIncremental>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
+    <LinkIncremental>false</LinkIncremental>
+  </PropertyGroup>
+  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
+    <ClCompile>
+      <AdditionalIncludeDirectories>..\..\..\core\include;..\..\..\dependencies\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <WarningLevel>Level3</WarningLevel>
+      <SDLCheck>true</SDLCheck>
+      <PreprocessorDefinitions>WIN32;_DEBUG;_WINDOWS;MEMORY_MANAGER_ACTIVE;USE_SDL2;USE_GAMEPAD;GLEW_STATIC;_NEWTON_USE_LIB;IL_STATIC_LIB;HAVE_LIBC;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <ConformanceMode>true</ConformanceMode>
+      <DisableSpecificWarnings>26495;26812;26451</DisableSpecificWarnings>
+      <MultiProcessorCompilation>true</MultiProcessorCompilation>
+    </ClCompile>
+    <Link>
+      <SubSystem>Windows</SubSystem>
+      <GenerateDebugInformation>true</GenerateDebugInformation>
+      <AdditionalDependencies>dbghelp.lib;winmm.lib;setupapi.lib;Imm32.lib;Version.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalLibraryDirectories>$(SolutionDir)\HPL2\dependencies\lib\Win32;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
+    </Link>
+  </ItemDefinitionGroup>
+  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
+    <ClCompile>
+      <AdditionalIncludeDirectories>..\..\..\core\include;..\..\..\dependencies\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <WarningLevel>Level3</WarningLevel>
+      <FunctionLevelLinking>true</FunctionLevelLinking>
+      <IntrinsicFunctions>true</IntrinsicFunctions>
+      <SDLCheck>true</SDLCheck>
+      <PreprocessorDefinitions>WIN32;NDEBUG;_WINDOWS;USE_GAMEPAD;USE_SDL2;GLEW_STATIC;_NEWTON_USE_LIB;IL_STATIC_LIB;HAVE_LIBC;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <ConformanceMode>true</ConformanceMode>
+      <DisableSpecificWarnings>26495;26812;26451</DisableSpecificWarnings>
+      <MultiProcessorCompilation>true</MultiProcessorCompilation>
+    </ClCompile>
+    <Link>
+      <SubSystem>Windows</SubSystem>
+      <EnableCOMDATFolding>true</EnableCOMDATFolding>
+      <OptimizeReferences>true</OptimizeReferences>
+      <GenerateDebugInformation>true</GenerateDebugInformation>
+      <AdditionalLibraryDirectories>$(SolutionDir)\HPL2\dependencies\lib\Win32;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
+      <AdditionalDependencies>winmm.lib;setupapi.lib;Imm32.lib;Version.lib;%(AdditionalDependencies)</AdditionalDependencies>
+    </Link>
+  </ItemDefinitionGroup>
+  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
+    <ClCompile>
+      <AdditionalIncludeDirectories>..\..\..\core\include;..\..\..\dependencies\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <WarningLevel>Level3</WarningLevel>
+      <SDLCheck>true</SDLCheck>
+      <PreprocessorDefinitions>_DEBUG;_WINDOWS;MEMORY_MANAGER_ACTIVE;USE_SDL2;USE_GAMEPAD;GLEW_STATIC;_NEWTON_USE_LIB;IL_STATIC_LIB;HAVE_LIBC;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <ConformanceMode>true</ConformanceMode>
+      <DisableSpecificWarnings>26495;26812;26451</DisableSpecificWarnings>
+      <MultiProcessorCompilation>true</MultiProcessorCompilation>
+    </ClCompile>
+    <Link>
+      <SubSystem>Windows</SubSystem>
+      <GenerateDebugInformation>true</GenerateDebugInformation>
+      <AdditionalDependencies>dbghelp.lib;winmm.lib;setupapi.lib;Imm32.lib;Version.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalLibraryDirectories>$(SolutionDir)\HPL2\dependencies\lib\Win64;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
+    </Link>
+  </ItemDefinitionGroup>
+  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
+    <ClCompile>
+      <AdditionalIncludeDirectories>..\..\..\core\include;..\..\..\dependencies\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <WarningLevel>Level3</WarningLevel>
+      <FunctionLevelLinking>true</FunctionLevelLinking>
+      <IntrinsicFunctions>true</IntrinsicFunctions>
+      <SDLCheck>true</SDLCheck>
+      <PreprocessorDefinitions>NDEBUG;_WINDOWS;USE_GAMEPAD;USE_SDL2;GLEW_STATIC;_NEWTON_USE_LIB;IL_STATIC_LIB;HAVE_LIBC;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <ConformanceMode>true</ConformanceMode>
+      <DisableSpecificWarnings>26495;26812;26451</DisableSpecificWarnings>
+      <MultiProcessorCompilation>true</MultiProcessorCompilation>
+    </ClCompile>
+    <Link>
+      <SubSystem>Windows</SubSystem>
+      <EnableCOMDATFolding>true</EnableCOMDATFolding>
+      <OptimizeReferences>true</OptimizeReferences>
+      <GenerateDebugInformation>true</GenerateDebugInformation>
+      <AdditionalLibraryDirectories>$(SolutionDir)\HPL2\dependencies\lib\Win64;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
+      <AdditionalDependencies>winmm.lib;setupapi.lib;Imm32.lib;Version.lib;%(AdditionalDependencies)</AdditionalDependencies>
+    </Link>
+  </ItemDefinitionGroup>
+  <ItemGroup>
+    <ClCompile Include="..\common\DirectoryHandler.cpp" />
+    <ClCompile Include="..\common\EditorAction.cpp" />
+    <ClCompile Include="..\common\EditorActionCompoundObject.cpp" />
+    <ClCompile Include="..\common\EditorActionEntity.cpp" />
+    <ClCompile Include="..\common\EditorActionHandler.cpp" />
+    <ClCompile Include="..\common\EditorActionMisc.cpp" />
+    <ClCompile Include="..\common\EditorActionSelection.cpp" />
+    <ClCompile Include="..\common\EditorAxisAlignedPlane.cpp" />
+    <ClCompile Include="..\common\EditorBaseClasses.cpp" />
+    <ClCompile Include="..\common\EditorClipPlane.cpp" />
+    <ClCompile Include="..\common\EditorEditMode.cpp" />
+    <ClCompile Include="..\common\EditorEditModeSelect.cpp" />
+    <ClCompile Include="..\common\EditorEditModeSelectTool.cpp" />
+    <ClCompile Include="..\common\EditorEditModeSelectToolRotate.cpp" />
+    <ClCompile Include="..\common\EditorEditModeSelectToolScale.cpp" />
+    <ClCompile Include="..\common\EditorEditModeSelectToolTranslate.cpp" />
+    <ClCompile Include="..\common\EditorGrid.cpp" />
+    <ClCompile Include="..\common\EditorHelper.cpp" />
+    <ClCompile Include="..\common\EditorIndex.cpp" />
+    <ClCompile Include="..\common\EditorInput.cpp" />
+    <ClCompile Include="..\common\EditorSelection.cpp" />
+    <ClCompile Include="..\common\EditorThumbnailBuilder.cpp" />
+    <ClCompile Include="..\common\EditorUserClassDefinitionManager.cpp" />
+    <ClCompile Include="..\common\EditorVar.cpp" />
+    <ClCompile Include="..\common\EditorViewport.cpp" />
+    <ClCompile Include="..\common\EditorWorld.cpp" />
+    <ClCompile Include="..\common\EngineEntity.cpp" />
+    <ClCompile Include="..\common\EntityIcon.cpp" />
+    <ClCompile Include="..\common\EntityPicker.cpp" />
+    <ClCompile Include="..\common\EntityWrapper.cpp" />
+    <ClCompile Include="..\common\EntityWrapperCompoundObject.cpp" />
+    <ClCompile Include="..\common\StdAfx.cpp" />
+    <ClCompile Include="..\common\SurfacePicker.cpp" />
+    <ClCompile Include="..\common\EditorWindow.cpp" />
+    <ClCompile Include="..\common\EditorWindowEditModeSidebar.cpp" />
+    <ClCompile Include="..\common\EditorWindowEntityEditBox.cpp" />
+    <ClCompile Include="..\common\EditorWindowEntityEditBoxCompound.cpp" />
+    <ClCompile Include="..\common\EditorWindowEntityEditBoxGroup.cpp" />
+    <ClCompile Include="..\common\EditorWindowFactory.cpp" />
+    <ClCompile Include="..\common\EditorWindowLowerToolbar.cpp" />
+    <ClCompile Include="..\common\EditorWindowMaterialEditor.cpp" />
+    <ClCompile Include="..\common\EditorWindowSelect.cpp" />
+    <ClCompile Include="..\common\EditorWindowViewport.cpp" />
+    <ClCompile Include="..\common\EditorWindowEntitySearch.cpp" />
+    <ClCompile Include="..\common\EditorWindowLoaderStatus.cpp" />
+    <ClCompile Include="..\common\EditorWindowOptions.cpp" />
+    <ClCompile Include="..\common\EditorWindowSoundBrowser.cpp" />
+    <ClCompile Include="..\common\EditorWindowTextureBrowser.cpp" />
+    <ClCompile Include="BuildID_MaterialEditor_Win32.cpp" />
+    <ClCompile Include="MaterialEditor.cpp" />
+    <ClCompile Include="MaterialEditorMain.cpp" />
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="..\common\DirectoryHandler.h" />
+    <ClInclude Include="..\common\EditorAction.h" />
+    <ClInclude Include="..\common\EditorActionCompoundObject.h" />
+    <ClInclude Include="..\common\EditorActionEntity.h" />
+    <ClInclude Include="..\common\EditorActionHandler.h" />
+    <ClInclude Include="..\common\EditorActionMisc.h" />
+    <ClInclude Include="..\common\EditorActionSelection.h" />
+    <ClInclude Include="..\common\EditorAxisAlignedPlane.h" />
+    <ClInclude Include="..\common\EditorBaseClasses.h" />
+    <ClInclude Include="..\common\EditorClipPlane.h" />
+    <ClInclude Include="..\common\EditorEditMode.h" />
+    <ClInclude Include="..\common\EditorEditModeSelect.h" />
+    <ClInclude Include="..\common\EditorEditModeSelectTool.h" />
+    <ClInclude Include="..\common\EditorEditModeSelectToolRotate.h" />
+    <ClInclude Include="..\common\EditorEditModeSelectToolScale.h" />
+    <ClInclude Include="..\common\EditorEditModeSelectToolTranslate.h" />
+    <ClInclude Include="..\common\EditorGrid.h" />
+    <ClInclude Include="..\common\EditorHelper.h" />
+    <ClInclude Include="..\common\EditorIndex.h" />
+    <ClInclude Include="..\common\EditorInput.h" />
+    <ClInclude Include="..\common\EditorSelection.h" />
+    <ClInclude Include="..\common\EditorThumbnailBuilder.h" />
+    <ClInclude Include="..\common\EditorTypes.h" />
+    <ClInclude Include="..\common\EditorUserClassDefinitionManager.h" />
+    <ClInclude Include="..\common\EditorVar.h" />
+    <ClInclude Include="..\common\EditorViewport.h" />
+    <ClInclude Include="..\common\EditorWorld.h" />
+    <ClInclude Include="..\common\EngineEntity.h" />
+    <ClInclude Include="..\common\EntityIcon.h" />
+    <ClInclude Include="..\common\EntityPicker.h" />
+    <ClInclude Include="..\common\EntityWrapper.h" />
+    <ClInclude Include="..\common\EntityWrapperCompoundObject.h" />
+    <ClInclude Include="..\common\StdAfx.h" />
+    <ClInclude Include="..\common\SurfacePicker.h" />
+    <ClInclude Include="..\common\EditorWindow.h" />
+    <ClInclude Include="..\common\EditorWindowEditModeSidebar.h" />
+    <ClInclude Include="..\common\EditorWindowEntityEditBox.h" />
+    <ClInclude Include="..\common\EditorWindowEntityEditBoxCompound.h" />
+    <ClInclude Include="..\common\EditorWindowEntityEditBoxGroup.h" />
+    <ClInclude Include="..\common\EditorWindowFactory.h" />
+    <ClInclude Include="..\common\EditorWindowLowerToolbar.h" />
+    <ClInclude Include="..\common\EditorWindowMaterialEditor.h" />
+    <ClInclude Include="..\common\EditorWindowSelect.h" />
+    <ClInclude Include="..\common\EditorWindowViewport.h" />
+    <ClInclude Include="..\common\EditorWindowEntitySearch.h" />
+    <ClInclude Include="..\common\EditorWindowLoaderStatus.h" />
+    <ClInclude Include="..\common\EditorWindowOptions.h" />
+    <ClInclude Include="..\common\EditorWindowSoundBrowser.h" />
+    <ClInclude Include="..\common\EditorWindowTextureBrowser.h" />
+    <ClInclude Include="BuildID_MaterialEditor.h" />
+    <ClInclude Include="MaterialEditor.h" />
+    <ClInclude Include="MaterialEditorTypes.h" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\..\..\core\HPL2.vcxproj">
+      <Project>{4ab08447-393f-40d0-a48d-aa6ca41d50cc}</Project>
+    </ProjectReference>
+  </ItemGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
+  <ImportGroup Label="ExtensionTargets">
+  </ImportGroup>
+</Project>
