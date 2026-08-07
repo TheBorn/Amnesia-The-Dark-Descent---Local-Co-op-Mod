@@ -432,6 +432,11 @@ Whichever you pick, do this first:
   screen. That is normal and it works fine.
 - A **full screen each** needs a second display on the host, real or virtual, and
   *Co-op view* set to that monitor. See the notes at the end of each tutorial.
+- **Give them the pad and nothing else.** Player 2 in this mod is a gamepad, start to
+  finish — there is no point in the game where they need your keyboard or your mouse. So
+  you can switch both off at the host end and lose nothing at all. Both apps can do this,
+  and both can also keep the rest of your desktop out of the stream. How, in each
+  tutorial below.
 
 ### Moonlight (recommended)
 
@@ -473,6 +478,23 @@ usually use are the [Virtual Display Driver](https://github.com/itsmikethetech/V
 or an HDMI dummy plug — then set *Co-op view* to that display and have Sunshine stream it.
 You get your real monitor, they get the virtual one.
 
+**Keeping your PC to yourself:**
+
+- In Sunshine's web interface, *Configuration → Input* has three separate switches:
+  *allow keyboard input from the client*, *allow mouse input from the client*, and
+  *allow controller input from the client*. All three are **on** by default. Turn the
+  first two **off** and leave controller on. Your guest keeps full control of Player 2
+  and cannot type, click or alt-tab on your machine at all.
+- Stream **one display, not your desktop.** *Configuration → Audio/Video → Output Name*
+  (`output_name`) picks which monitor is captured. Point it at the virtual display and
+  your real screen is never in the stream in the first place — so it does not matter what
+  is on it. On Windows the value is the `device_id` in braces from Sunshine's startup log.
+  This pairs naturally with the full-screen-each setup above: the display you hand them is
+  the display they get.
+- Pairing is a one-time PIN per client and the web interface is behind the username and
+  password you set in step 2. Nobody who has not paired can connect, and
+  *Troubleshooting → Unpair All Clients* revokes everyone if you ever want a clean slate.
+
 ### Parsec
 
 Parsec is easier to set up because it handles the connection for you — no VPN, no port
@@ -488,3 +510,19 @@ forwarding — at the cost of somewhat more latency than Moonlight and 20 dollar
 multi-display session. Check the [current pricing](https://parsec.app/pricing) — it has
 changed over the years. Last I checked its 9.99 USD/EUR for a month. If you would rather not pay, use Moonlight with a free virtual
 display driver, or just play split-screen, which costs nothing and works just as fine too but you do get a smaller viewport each.
+
+**Keeping your PC to yourself:**
+
+- The safe setup is already the default here. Parsec gives a guest **controller
+  permissions only**; keyboard and mouse have to be handed over deliberately, by clicking
+  their profile picture at the bottom of the Parsec window. For this mod there is never a
+  reason to — so just do not, and they are a gamepad and nothing else. What guests get by
+  default lives under the **Friends** icon if you want to check it.
+- **Approved Apps** is the one worth setting up: *Settings cog → Approved Apps → enable
+  it*, then launch Amnesia and tick it in the list. If you alt-tab out of the game, the
+  guest's screen freezes on *"The host is doing something else right now. Please wait a
+  moment!"* and their controller, keyboard and mouse all stop working until you come back.
+  Windows only. Run the game **fullscreen** while you use it — in windowed mode the guest
+  can still see whatever is around the window.
+- A connection has to be accepted by you before it starts, either from the prompt or with
+  `Ctrl`+`F1`.
