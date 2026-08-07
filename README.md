@@ -1,6 +1,6 @@
 # Amnesia: The Dark Descent — Local Co-op Mod
 
-Split-screen local co-op for *Amnesia: The Dark Descent*, built on the
+Split-Screen / Dual Monitor Local Co-op for *Amnesia: The Dark Descent*, built on the
 [Amnesia64](https://github.com/buzer2020/Amnesia64) 64-bit fork of Frictional Games'
 open-source HPL2 engine.
 
