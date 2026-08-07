@@ -58,6 +58,9 @@ public:
 	//Implements eLuxEnemyState_Hurt, with a "Flinch" animation. See the base.
 	bool HasFlinchState(){ return true;}
 
+	//Implements eLuxEnemyState_AttackMeleeLong, the "SwingLaunch" lunge.
+	bool HasLungeAttack(){ return true;}
+
 
 	//////////////////////
 	//Debug

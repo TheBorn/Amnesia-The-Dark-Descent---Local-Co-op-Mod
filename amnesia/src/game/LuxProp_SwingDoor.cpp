@@ -403,12 +403,18 @@ bool cLuxProp_SwingDoor::ForceBreak()
 {
 	if(mbBroken) return false;
 
-	//Both gates OnHealthChange checks, cleared before it runs. The break itself
-	//is all in there -- sound, particles, swapping in the broken bodies -- so
-	//this deliberately does not reimplement any of it.
-	mbBreakable = true;
+	//Breakable is NOT ours to switch on -- it is an entity-file variable, and a
+	//door type that does not declare it has no broken bodies to swap in. Forcing
+	//it would run OnHealthChange against a door with nothing to become.
+	if(mbBreakable==false) return false;
+
+	//DisableBreakable IS ours: the instance variable a level designer ticks on one
+	//specific door to make it survive a grunt. That is exactly the switch an
+	//explicit `destroy` is meant to overrule.
 	mbDisableBreakable = false;
 
+	//The break itself is all in OnHealthChange -- sound, particles, swapping in
+	//the broken bodies -- so this deliberately does not reimplement any of it.
 	SetHealth(0.0f);
 
 	return true;

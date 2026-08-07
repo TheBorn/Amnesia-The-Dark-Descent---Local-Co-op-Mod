@@ -4005,11 +4005,9 @@ void cLuxPlayerInDarkness::SetActive(bool abX)
 
 //-----------------------------------------------------------------------
 
-//How far H reaches, how far ahead the steering goal sits, and how far in front of
-//the enemy we look for a door. The goal distance only has to be comfortably beyond
-//the mover's arrival radius -- it is a direction, not a destination.
+//How far H reaches, and how far in front of the enemy we look for a door. The
+//steering goal distance moved to LuxEnemy.cpp with the steering itself.
 static const float gfPossessRange = 25.0f;
-static const float gfPossessMoveGoalDist = 4.0f;
 static const float gfPossessDoorRange = 2.5f;
 
 /**
@@ -4043,9 +4041,43 @@ static cLuxPossessCamRayCallback gPossessCamRayCallback;
 
 //-----------------------------------------------------------------------
 
+/**
+ * What each "Become <x>" spawns, in eLuxMorphType order.
+ *
+ * Paths are the shipped ones, not guesses: the grunt and the brute are the
+ * files the co-op avatar rigs already load the meshes out of, the water lurker
+ * is what the Cellar Archives map places, and the suitor lives in the Justine
+ * content, which cLuxBase's own CRC checks name.
+ *
+ * A missing file is not a crash -- cLuxMap::CreateEntity logs it and no entity
+ * appears, which Morph() reports as a refused morph.
+ */
+struct cLuxMorphDef
+{
+	const char *msName;
+	const char *msEntFile;
+};
+
+static const cLuxMorphDef gvMorphDefs[eLuxMorphType_LastEnum] =
+{
+	{ "Grunt",        "entities/enemy/servant_grunt/servant_grunt.ent" },
+	{ "Brute",        "entities/enemy/servant_brute/servant_brute.ent" },
+	{ "Suitor",       "entities/ptest/enemy_suitor/enemy_suitor_alois.ent" },
+	{ "Water Lurker", "entities/enemy/waterlurker/waterlurker.ent" },
+};
+
+//Only has to be unique among the entities alive at once; cLuxMap keys its name
+//map on this, and a collision would make the second one unfindable.
+static int glMorphSpawnCount = 0;
+
+//-----------------------------------------------------------------------
+
 cLuxPlayerPossess::cLuxPlayerPossess(cLuxPlayer *apPlayer) : iLuxPlayerHelper(apPlayer, "PlayerPossess")
 {
 	mpEnemy = NULL;
+
+	mlMorphType = -1;
+	mpMorphMap = NULL;
 
 	mpCam = NULL;
 	mpBoundViewport = NULL;
@@ -4140,6 +4172,80 @@ void cLuxPlayerPossess::Toggle()
 
 //-----------------------------------------------------------------------
 
+void cLuxPlayerPossess::ToggleMorph(int alMorphType)
+{
+	//Player 1 only, same as Toggle.
+	if(mpPlayer->IsPlayer2()) return;
+	if(alMorphType < 0 || alMorphType >= eLuxMorphType_LastEnum) return;
+
+	//Same key twice changes back.
+	if(mlMorphType == alMorphType)
+	{
+		Unmorph();
+		return;
+	}
+
+	if(::ImGuiDebugMenu::GetAllowEnemyMorph()==false) return;
+
+	//A different monster, or one while holding a possessed one: let go of whatever
+	//we have first.
+	//
+	//Through Unmorph when we are morphed, not straight to Release: swapping monster
+	//has to move our body to where the old one had walked to, or the new one would
+	//spawn back at the spot the first morph happened and yank us across the level.
+	if(IsMorphed())	Unmorph();
+	else			Release();
+
+	if(Morph(alMorphType)==false)
+	{
+		gpBase->mpDebugHandler->AddMessage(
+			_W("Could not morph -- that monster's entity file is missing"), false);
+	}
+}
+
+//-----------------------------------------------------------------------
+
+void cLuxPlayerPossess::Unmorph()
+{
+	if(mlMorphType < 0) return;
+
+	//Where the monster ended up, read BEFORE Release deletes it. The player's own
+	//body never moved, so without this you would snap back to where you morphed.
+	iCharacterBody *pEnemyBody = mpEnemy ? mpEnemy->GetCharacterBody() : NULL;
+	iCharacterBody *pPlayerBody = mpPlayer->GetCharacterBody();
+
+	const bool bMovePlayer = pEnemyBody != NULL && pPlayerBody != NULL;
+	cVector3f vFeet(0,0,0);
+	float fYaw = 0;
+	if(bMovePlayer)
+	{
+		vFeet = pEnemyBody->GetFeetPosition();
+		fYaw = pEnemyBody->GetYaw();
+	}
+
+	Release();
+
+	if(bMovePlayer)
+	{
+		//The same sequence cLuxMapHandler::TeleportPlayerToOther uses, and for the
+		//same reasons: clear the fall speed the parked body may have accumulated,
+		//point the camera where the monster was looking, and run one tiny update so
+		//the body settles against the floor instead of on the next real frame.
+		pPlayerBody->SetFeetPosition(vFeet);
+		pPlayerBody->SetForceVelocity(0);
+		pPlayerBody->SetYaw(fYaw);
+		if(mpPlayer->GetCamera()) mpPlayer->GetCamera()->SetYaw(fYaw);
+		pPlayerBody->Update(0.001f);
+
+		//A liquid area only clears the in-water flag for a body it can still see,
+		//and ours was switched off the whole time -- so a morph that ended out of
+		//the water would otherwise leave the player swimming on dry land.
+		mpPlayer->SetIsInWater(false);
+	}
+}
+
+//-----------------------------------------------------------------------
+
 void cLuxPlayerPossess::AddMove(float afForward, float afRight)
 {
 	if(mpEnemy==NULL) return;
@@ -4173,6 +4279,56 @@ void cLuxPlayerPossess::SetRunning(bool abX)
 
 //-----------------------------------------------------------------------
 
+void cLuxPlayerPossess::PushSteerToEnemy()
+{
+	if(mpEnemy==NULL || mpCam==NULL) return;
+
+	////////////////////////////////
+	// Bring the camera up to date FIRST.
+	//
+	// PoseCamera runs at the end of our Update, which is later in the tick than
+	// this -- so mpCam still holds LAST tick's angles right now, and reading its
+	// forward would hand the monster a heading one tick of mouse movement stale.
+	// SetYaw/SetPitch only dirty the view matrix; GetForward rebuilds it.
+	mpCam->SetYaw(mfCamYaw);
+	mpCam->SetPitch(mfCamPitch);
+
+	//GetForward and GetRight are the engine's own pair -- cCamera::GetForward
+	//negates the view matrix's forward and GetRight does not, matching what
+	//MoveForward/MoveRight do off the move matrix. They agree by construction.
+	cVector3f vCamFwd = mpCam->GetForward();
+	cVector3f vCamRight = mpCam->GetRight();
+	vCamFwd.y = 0;
+	vCamRight.y = 0;
+
+	cVector3f vAim(0,0,0);
+	if(vCamFwd.SqrLength() > 0.0001f)
+	{
+		vAim = vCamFwd;
+		vAim.Normalize();
+	}
+
+	////////////////////////////////
+	// Steering direction
+	cVector3f vWish(0,0,0);
+	if(vAim.SqrLength() > 0.0001f && vCamRight.SqrLength() > 0.0001f &&
+		(cMath::Abs(mfWishForward) > 0.01f || cMath::Abs(mfWishRight) > 0.01f))
+	{
+		vCamRight.Normalize();
+
+		vWish = vAim*mfWishForward + vCamRight*mfWishRight;
+		if(vWish.SqrLength() > 0.0001f)	vWish.Normalize();
+		else							vWish = cVector3f(0,0,0);
+	}
+
+	mpEnemy->SetPossessSteer(vWish, vAim, mbRunning);
+
+	mfWishForward = 0;
+	mfWishRight = 0;
+}
+
+//-----------------------------------------------------------------------
+
 void cLuxPlayerPossess::DoAttack()
 {
 	if(mpEnemy==NULL) return;
@@ -4184,7 +4340,27 @@ void cLuxPlayerPossess::DoAttack()
 	//
 	//ChangeState is a no-op while already in the state, so holding the button cannot
 	//restart a swing half way through.
-	mpEnemy->ChangeState(eLuxEnemyState_AttackMeleeShort);
+
+	////////////////////////////////
+	// Which swing -- the monster's own answer, not ours.
+	//
+	// A grunt at a run does not stop and claw, it launches: cLuxEnemy_Grunt's Hunt
+	// state picks AttackMeleeLong whenever the player is past NormalAttackDistance
+	// and it is already running. There is no player to measure to here, so the
+	// running half of that test is the whole test -- and it is read off the MOVER's
+	// move state rather than off our own Shift flag, because that is derived from
+	// real velocity against WalkToRunSpeed. Holding Shift in a doorway is not
+	// running, and the monster knows it.
+	//
+	// HasLungeAttack gates it: the water lurker never implements the state, and
+	// changing into a state an enemy does not implement strands it in something
+	// with no Enter, no Update and no way out.
+	const bool bLunge = mpEnemy->HasLungeAttack() &&
+						mpEnemy->GetMover() != NULL &&
+						mpEnemy->GetMover()->GetMoveState() == eLuxEnemyMoveState_Running;
+
+	mpEnemy->ChangeState(bLunge ? eLuxEnemyState_AttackMeleeLong
+								: eLuxEnemyState_AttackMeleeShort);
 }
 
 //-----------------------------------------------------------------------
@@ -4239,18 +4415,43 @@ void cLuxPlayerPossess::DoBreakDoor()
 
 void cLuxPlayerPossess::Update(float afTimeStep)
 {
+	////////////////////////////////
+	// The debug menu's Become buttons.
+	//
+	// Taken here rather than in cLuxInputHandler because the menu is usable in
+	// states where the player input update does not run, and because this is the
+	// one function that is guaranteed to tick whenever the player does. The 1-4
+	// keys call ToggleMorph directly; both ends up in the same place.
+	//
+	// Read unconditionally, above the early-out: a request parked while nothing is
+	// held is exactly the normal case.
+	const int lMorphRequest = ::ImGuiDebugMenu::ConsumeEnemyMorphRequest();
+	if(lMorphRequest >= 0 && mpPlayer->IsPlayer2()==false) ToggleMorph(lMorphRequest);
+
 	if(mpEnemy==NULL) return;
 
 	////////////////////////////////
 	// Every reason to let go on our own
+	//
+	// Possession's own switch does NOT release a morph -- morphing has its own
+	// switch and its own keys, and needing both ticked to stay a monster would be
+	// a trap. Each panic button covers its own feature.
+	const bool bSwitchedOff = IsMorphed()
+							? ::ImGuiDebugMenu::GetAllowEnemyMorph()==false
+							: ::ImGuiDebugMenu::GetAllowPossession()==false;
+
 	if(gpBase->mpMapHandler->GetCurrentMap()==NULL ||
 		mpEnemy->GetCharacterBody()==NULL ||
 		mpEnemy->GetHealth() <= 0 ||
 		mpPlayer->GetCharacterBody()==NULL ||
 		mpPlayer->IsDead() ||
-		::ImGuiDebugMenu::GetAllowPossession()==false)
+		bSwitchedOff)
 	{
-		Release();
+		//Through Unmorph where it applies, so a monster that got killed under you
+		//puts you down where it fell rather than back at the morph spot. Unmorph
+		//copes with the map or either body already being gone.
+		if(IsMorphed())	Unmorph();
+		else			Release();
 		return;
 	}
 
@@ -4274,52 +4475,36 @@ void cLuxPlayerPossess::Update(float afTimeStep)
 	// SetMoveSpeed only swaps four scalars (forward/backward speed and accel). The
 	// run ANIMATION is never commanded: cLuxEnemyMover::UpdateMoveAnimation picks
 	// walk vs run from measured velocity against mfWalkToRunSpeed, so raising the
-	// cap makes the run cycle appear by itself. Re-asserted every frame because a
-	// state's kLuxOnEnter is free to multiply mfForwardSpeed behind our back.
-	mpEnemy->SetMoveSpeed(mbRunning ? eLuxEnemyMoveSpeed_Run : eLuxEnemyMoveSpeed_Walk);
+	// cap makes the run cycle appear by itself.
+	//
+	// Re-asserted every frame because states leave it wherever suits them -- the
+	// grunt's lunge sets Run in its kLuxOnLeave, so without this one launch attack
+	// would leave you sprinting with Shift up for good.
+	//
+	// EXCEPT while a state is deliberately driving the speed itself. The lunge
+	// multiplies mfForwardSpeed (1.5x on the grunt, 2x on the manpig) in its
+	// kLuxOnEnter, and SetMoveSpeed reassigns that field outright from the defaults
+	// -- so re-asserting through a launch attack flattened it back to an ordinary
+	// run on the very next tick, which is exactly what a lunge is not.
+	const eLuxEnemyState possessState = mpEnemy->GetCurrentEnemyState();
+	const bool bStateOwnsSpeed = possessState == eLuxEnemyState_AttackMeleeShort ||
+								 possessState == eLuxEnemyState_AttackMeleeLong ||
+								 possessState == eLuxEnemyState_BreakDoor;
+
+	if(bStateOwnsSpeed==false)
+		mpEnemy->SetMoveSpeed(mbRunning ? eLuxEnemyMoveSpeed_Run : eLuxEnemyMoveSpeed_Walk);
 
 	////////////////////////////////
-	// Steer
+	// Steering is NOT done here.
 	//
-	// Camera-relative: a goal point a few metres ahead in the direction the keys are
-	// asking for, handed to the mover. MoveToPos is literally TurnToPos +
-	// mpCharBody->Move(eCharDir_Forward, 1.0f) -- the same two calls
-	// cLuxEnemyPathfinder::UpdateMoving makes for the AI -- so the turn rate, the
-	// turn-braking that makes a monster skid on a hard turn, and the walk cycle are
-	// all the enemy's own. Nothing here reimplements any of it.
-	if(cMath::Abs(mfWishForward) > 0.01f || cMath::Abs(mfWishRight) > 0.01f)
-	{
-		//GetForward() and GetRight() are the engine's OWN forward/right pair, not
-		//two accessors that happen to sound like one. cCamera::GetForward negates
-		//the view matrix's forward and GetRight does not -- which looks like a
-		//handedness trap until you read MoveForward/MoveRight, which use exactly the
-		//same negation pattern off the move matrix. So they agree by construction,
-		//and deriving right from a cross product instead would mean guessing at the
-		//world's handedness for no benefit.
-		cVector3f vCamFwd = mpCam->GetForward();
-		cVector3f vCamRight = mpCam->GetRight();
-		vCamFwd.y = 0;
-		vCamRight.y = 0;
-
-		//Looking straight up or down leaves nothing to steer by; keep the last
-		//sensible heading rather than lurching.
-		if(vCamFwd.SqrLength() > 0.0001f && vCamRight.SqrLength() > 0.0001f)
-		{
-			vCamFwd.Normalize();
-			vCamRight.Normalize();
-
-			cVector3f vWish = vCamFwd*mfWishForward + vCamRight*mfWishRight;
-			if(vWish.SqrLength() > 0.0001f)
-			{
-				vWish.Normalize();
-				mpEnemy->GetMover()->MoveToPos(
-					mpEnemy->GetCharacterBody()->GetPosition() + vWish*gfPossessMoveGoalDist);
-			}
-		}
-	}
-
-	mfWishForward = 0;
-	mfWishRight = 0;
+	// PushSteerToEnemy hands the monster its goal from cLuxInputHandler, and
+	// iLuxEnemy::OnUpdate consumes it in the slot the pathfinder would have filled.
+	// Doing it here instead cost a full tick: this helper runs from cLuxPlayer,
+	// which is behind cLuxMapHandler in the "Default" container, so the goal was
+	// always one tick old by the time the mover turned on it and CalculateSpeedMul
+	// braked on it. With TurnBreakMul at 2 a 29 degree heading error is already a
+	// dead stop, so a heading permanently trailing the camera meant a monster that
+	// braked its way round every corner.
 
 	PoseCamera();
 }
@@ -4334,6 +4519,24 @@ void cLuxPlayerPossess::Update(float afTimeStep)
 
 void cLuxPlayerPossess::Release()
 {
+	////////////////////////////////
+	// Our own body comes back first, before anything below can bail out on us --
+	// leaving it switched off would strand the player unable to move and, in
+	// co-op, invisible to the other one.
+	//
+	// Guarded on having been morphed rather than done every time: possession
+	// never switches the body off, so a body found switched off on that path was
+	// switched off by something else and is not ours to switch back on.
+	if(mlMorphType >= 0)
+	{
+		iCharacterBody *pPlayerBody = mpPlayer->GetCharacterBody();
+		if(pPlayerBody)
+		{
+			pPlayerBody->SetActive(true);
+			pPlayerBody->SetForceVelocity(0);
+		}
+	}
+
 	if(mpEnemy)
 	{
 		//Stop it where the player left it, so the AI does not inherit a sprint.
@@ -4341,14 +4544,125 @@ void cLuxPlayerPossess::Release()
 		if(pBody) pBody->StopMovement();
 
 		mpEnemy->SetPossessed(false);
+
+		////////////////////////////////
+		// A morphed monster was made for us, so it goes with us.
+		//
+		// Only through the map that created it, and only while that map is still
+		// the loaded one -- DestroyEntity queues onto that map's own to-destroy
+		// list, and a map we have already left has torn its entities down anyway.
+		// On that path the entity pointer is dead too, hence the map check before
+		// anything is done with it.
+		if(mlMorphType >= 0 && mpMorphMap != NULL && gpBase->mpMapHandler != NULL &&
+			gpBase->mpMapHandler->GetCurrentMap() == mpMorphMap)
+		{
+			mpMorphMap->DestroyEntity(mpEnemy);
+		}
+
 		mpEnemy = NULL;
 	}
+
+	mlMorphType = -1;
+	mpMorphMap = NULL;
 
 	UnbindCamera();
 
 	mfWishForward = 0;
 	mfWishRight = 0;
 	mbRunning = false;
+}
+
+//-----------------------------------------------------------------------
+
+bool cLuxPlayerPossess::Morph(int alMorphType)
+{
+	if(::ImGuiDebugMenu::GetAllowEnemyMorph()==false) return false;
+	if(mpPlayer->IsDead()) return false;
+
+	cLuxMap *pMap = gpBase->mpMapHandler->GetCurrentMap();
+	if(pMap==NULL) return false;
+
+	iCharacterBody *pPlayerBody = mpPlayer->GetCharacterBody();
+	if(pPlayerBody==NULL) return false;
+
+	const cLuxMorphDef &def = gvMorphDefs[alMorphType];
+
+	////////////////////////////////
+	// Spawn it standing exactly where we are
+	//
+	// iLuxEnemyLoader::AfterLoad ends with SetFeetPosition(entity world position),
+	// so the transform's translation IS the feet -- no half-height correction, and
+	// nothing to shove out of a wall the way spawning a step ahead would need.
+	const cVector3f vFeet = pPlayerBody->GetFeetPosition();
+	const float fYaw = pPlayerBody->GetYaw();
+
+	const tString sName = "morph_" + tString(def.msName) + "_" +
+						  cString::ToString(glMorphSpawnCount++);
+
+	pMap->ResetLatestEntity();
+	pMap->CreateEntity(sName, def.msEntFile, cMath::MatrixTranslate(vFeet), cVector3f(1,1,1));
+
+	iLuxEntity *pEntity = pMap->GetLatestEntity();
+	if(pEntity==NULL || pEntity->GetEntityType() != eLuxEntityType_Enemy) return false;
+
+	iLuxEnemy *pEnemy = static_cast<iLuxEnemy*>(pEntity);
+	iCharacterBody *pEnemyBody = pEnemy->GetCharacterBody();
+	if(pEnemyBody==NULL)
+	{
+		pMap->DestroyEntity(pEnemy);
+		return false;
+	}
+
+	//////////////////////////////
+	// Never write it to a save.
+	//
+	// cLuxSavedMap only records an entity that IsSaved() and is not already being
+	// destroyed, so this one is skipped by every save path there is -- otherwise a
+	// quicksave taken mid-morph would leave a live monster in the map forever, one
+	// per morph, with its AI back on.
+	pEnemy->SetIsSaved(false);
+
+	//Face where we were facing. The loader only ever sets the position.
+	pEnemyBody->SetYaw(fYaw);
+
+	//////////////////////////////
+	// Put our own body away.
+	//
+	// Possession parks Player 1's body and leaves it standing in the room, which is
+	// right for possession -- that IS still you over there. Morphing is meant to be
+	// you, so the body has to stop being in the world at all: two character bodies
+	// spawned inside each other would otherwise shove each other apart on the first
+	// frame, and Player 2 would see a Daniel stood next to the monster.
+	//
+	// SetActive(false) deactivates the underlying physics body and makes
+	// iCharacterBody::Update early-out, so it neither collides nor falls. Unmorph
+	// switches it back on and moves it to wherever the monster finished.
+	pPlayerBody->SetForceVelocity(0);
+	pPlayerBody->StopMovement();
+	pPlayerBody->SetActive(false);
+
+	//////////////////////////////
+	// Take it over -- from here on it is an ordinary possession
+	mpEnemy = pEnemy;
+	mpEnemy->SetPossessed(true);
+
+	mlMorphType = alMorphType;
+	mpMorphMap = pMap;
+
+	mfCamYaw = fYaw;
+	mfCamPitch = -cMath::ToRad(12.0f);
+
+	mfWishForward = 0;
+	mfWishRight = 0;
+	mbRunning = false;
+
+	BindCamera();
+	PoseCamera();
+
+	gpBase->mpDebugHandler->AddMessage(
+		cString::To16Char("Morphed into " + tString(def.msName)), false);
+
+	return true;
 }
 
 //-----------------------------------------------------------------------

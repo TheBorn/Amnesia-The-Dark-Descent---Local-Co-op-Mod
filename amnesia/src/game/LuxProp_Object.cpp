@@ -760,13 +760,24 @@ void cLuxProp_Object::Break()
 
 bool cLuxProp_Object::ForceBreak()
 {
-	//Through the normal path rather than calling Break() directly: with the
-	//break data switched on first, OnHealthChange runs whatever effects the
-	//prop does have. Calling Break() straight would delete the entity with no
-	//debris and no sound.
-	mBreakData.mbActive = true;
+	if(mbBroken) return false;
+
+	//BreakActive is NOT ours to switch on. It comes from the entity file and says
+	//whether this kind of object has a break at all -- BreakEntity, BreakSound,
+	//BreakParticleSystem, BreakImpulse. Forcing it true on a wardrobe or a chair
+	//gets BeforePropDestruction past its own guard with all of those empty, so
+	//nothing spawns, nothing plays, and the prop simply disappears. Refuse
+	//instead, and let `delete` be the command that makes things disappear.
+	if(mBreakData.mbActive==false) return false;
+
+	//DisableBreakable IS ours: an instance variable, ticked on this one placement
+	//in the level editor. Cleared for both guards that read it -- OnHealthChange's
+	//path into Break, and BeforePropDestruction, which is where the debris, the
+	//impulse, the sound and the particles actually happen.
 	mbDisableBreakable = false;
 
+	//Through the normal path rather than calling Break() directly, so it is the
+	//prop's own break that runs.
 	SetHealth(0.0f);
 
 	return true;

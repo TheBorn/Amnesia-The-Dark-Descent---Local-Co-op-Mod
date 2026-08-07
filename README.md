@@ -131,6 +131,32 @@ only once switched on here.
 The first time you switch on the console or the debug menu you get a one-time warning
 about what these can do to a save. Verbose logging gets none — it only makes the game slow.
 
+### Enemy Morph
+
+In the debug menu (`Insert`), under **POSSESSION / ENEMY MORPH**. Tick **Enable Morphing**
+and Player 1 can become a monster outright — no monster needs to be on the map to take
+over, one is spawned for you.
+
+| Key | Become |
+|---|---|
+| `1` | Servant Grunt |
+| `2` | Servant Brute |
+| `3` | Suitor (the Justine one, from `entities/ptest`) |
+| `4` | Water Lurker |
+
+The same key again changes you back, a different one swaps you straight over, and there
+are **Become** buttons in the menu doing the same thing. Controls are the possession ones:
+move and look as normal, `Shift` runs, mouse 1 swings, mouse 2 smashes a door in front of
+you. The *Possess Cam Distance* and *Height* sliders apply here too.
+
+While morphed your own body is switched off, so Player 2 sees the monster and not you, and
+you come back standing where the monster was. A morphed monster is never written to a save,
+you are changed back on a map change, and unticking the box changes you back immediately.
+
+Two things worth knowing: a Water Lurker has no visible model unless `showWaterLurkers` is
+on, and it only swims — on dry land you get an invisible monster that will not move. The
+Suitor needs the Justine content installed; if it is missing the morph is refused and says so.
+
 ---
 
 ## Console
@@ -147,7 +173,7 @@ Aiming is calculated from Player 1 only.
 | `spawn <file.ent>` | `spawn entities/enemy/servant_grunt/servant_grunt.ent` | Spawn an entity in front of you. `Tab` completes paths. |
 | `give <item>` | `give tinderbox` | Add an item to the inventory. `Tab` lists what is available. |
 | `kill` | `kill` | Kill the monster you are aiming at, might be a bit buggy with its ragdoll physics. |
-| `destroy` | `destroy` | Break the prop you are aiming at. |
+| `destroy` | `destroy` | Break the prop you are aiming at, playing its real break — broken mesh, debris, sound. Overrules the level editor's *DisableBreakable* tick, but will not break a prop whose type has no break at all; that gets refused rather than silently deleted. |
 | `delete` | `delete` | Remove the entity you are aiming at. Script areas need `debugView` on to be targeted. |
 | `undo` | `undo` | Restore the most recently deleted entity. |
 | `lit` / `unlit` | `lit` | Light or put out the lamp you are aiming at. |

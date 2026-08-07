@@ -1704,8 +1704,8 @@ bool cLuxEnemy_ManPig::StateEventImplement(int alState, eLuxEnemyStateEvent aEve
 				PlayAnim("Charge"+GetCurrentPoseSuffix(),false, 0.3f, false);
 			}
 
-			//Move towards player
-			mpMover->MoveToPos(GetTargetPlayer()->GetCharacterBody()->GetFeetPosition());
+			//Move towards player -- or, while possessed, where the player is aiming.
+			mpMover->MoveToPos(GetLungeGoalPos());
 
 		//------------------------------
 			

@@ -1108,7 +1108,7 @@ void Lux_RegisterConsoleCommands()
     // destroy  (whatever damageable thing Player 1 is aiming at)
     cImGuiConsole::RegisterCommand(
         "destroy",
-        "destroy (breaks the barrel, crate, door or other damageable prop player 1 is aiming at)",
+        "destroy (breaks the barrel, crate, door or other breakable prop player 1 is aiming at)",
         [](const cImGuiConsole::tArgs& a)
         {
             (void)a;
@@ -1134,18 +1134,23 @@ void Lux_RegisterConsoleCommands()
             iLuxProp* pProp = static_cast<iLuxProp*>(pEntity);
             const tString sName = pProp->GetName();
 
-            //Not GiveDamage. Damage is refused by the very flags this command
-            //is meant to ignore -- an object with no break data and a door not
-            //marked breakable both absorb any amount of it and stay whole.
-            //ForceBreak clears the gate first and then goes through the prop's
-            //own break path, so the debris and sound still happen.
+            //Not GiveDamage: damage is refused by the DisableBreakable tick a
+            //level designer can put on one door or one barrel, and overruling
+            //exactly that tick is the point of this command. ForceBreak clears it
+            //and then goes through the prop's OWN break, so the broken mesh, the
+            //debris impulse, the sound and the particles all still happen.
+            //
+            //What it will NOT do is break a prop whose type has no break at all.
+            //There is nothing to spawn or play for one of those, so forcing it
+            //would just make the prop vanish -- which is `delete`, and `delete`
+            //has undo.
             if (pProp->ForceBreak() == false)
             {
-                cImGuiConsole::AddLog("destroy: '%s' cannot be broken", sName.c_str());
+                cImGuiConsole::AddLog("destroy: '%s' is not breakable -- use delete", sName.c_str());
                 return;
             }
 
-            cImGuiConsole::AddLog("destroy: '%s' destroyed", sName.c_str());
+            cImGuiConsole::AddLog("destroy: '%s' broken", sName.c_str());
         }
     );
 

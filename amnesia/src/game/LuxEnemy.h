@@ -453,6 +453,16 @@ public:
 	 */
 	virtual bool HasFlinchState(){ return false;}
 
+	/**
+	 * Whether this enemy implements eLuxEnemyState_AttackMeleeLong -- the running
+	 * lunge, "SwingLaunch" on the grunt and the charge on the manpig.
+	 *
+	 * Exactly the same trap as HasFlinchState, and for the same reason: the water
+	 * lurker has no such state, so asking it for one would fall through to the
+	 * global handler and strand it. FALSE by default.
+	 */
+	virtual bool HasLungeAttack(){ return false;}
+
 	//////////////////////
 	// Movement animation names
 
@@ -540,6 +550,33 @@ public:
 	 * music, danger music, sanity drain -- and puts it back on release.
 	 */
 	void SetPossessed(bool abX);
+
+	/**
+	 * This tick's steering from whoever is possessing us.
+	 *
+	 * PUSHED, and pushed from cLuxInputHandler rather than from the possess helper's
+	 * own Update, because of where the two sit in the tick. The input handler is a
+	 * global module and runs before the "Default" container; cLuxPlayer is the third
+	 * module IN that container, behind cLuxMapHandler -- which is what updates us.
+	 * So a goal set from the helper's Update is always one tick old by the time
+	 * UpdateTurning and CalculateSpeedMul read it, and with TurnBreakMul at 2 a
+	 * heading error of 29 degrees already means fMul 0. Steering that permanently
+	 * trails the camera by a tick therefore reads as a monster that brakes to a stop
+	 * every time you turn.
+	 *
+	 * avMoveDir steers, avAimDir is where the camera points and is what a lunge
+	 * charges at. Both world space, XZ, normalized or zero.
+	 */
+	void SetPossessSteer(const cVector3f& avMoveDir, const cVector3f& avAimDir, bool abRunning);
+
+	/**
+	 * Where eLuxEnemyState_AttackMeleeLong should charge.
+	 *
+	 * GetTargetPlayer() while possessed is the possessing player's OWN body, which
+	 * a morph parks and switches off back where the morph happened -- so the lunge
+	 * would turn round and charge that. Answers with the aim direction instead.
+	 */
+	cVector3f GetLungeGoalPos();
 
 	//////////////////////
 	//Monster manipulation (optional, off unless enabled in the debug menu)
@@ -640,6 +677,9 @@ protected:
 	void UpdatePlayerDetected(float afTimeStep);
 	void UpdatePlayerInRange(float afTimeStep);
 	void UpdateCheckStuckAtDoor(float afTimeStep);
+
+	//Runs in the pathfinder's slot while possessed. See SetPossessSteer.
+	void UpdatePossessedSteer();
 	void UpdateCheckLastPlayerPos(float afTimeStep);
 	void UpdateDarknessGlow(float afTimeStep);
 	void UpdateRegenHealth(float afTimeStep);
@@ -745,6 +785,15 @@ protected:
 	// otherwise reload an enemy that is permanently deaf and blind.
 	bool mbPossessed;
 	bool mbSanityDecreaseBeforePossess;
+
+	//Steering pushed in by SetPossessSteer. mvPossessMoveDir keeps the last
+	//non-zero direction so a lunge started after the keys were let go still has
+	//something to aim at; mbPossessMoveWanted is the per-tick "move now", consumed
+	//and cleared in UpdatePossessedSteer.
+	cVector3f mvPossessMoveDir;
+	cVector3f mvPossessAimDir;
+	bool mbPossessMoveWanted;
+	bool mbPossessRunning;
 
 	bool mbHallucination;
 	float mfHallucinationEndDist;

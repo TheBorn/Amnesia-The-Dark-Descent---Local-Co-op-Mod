@@ -88,6 +88,9 @@ public:
 	//without the prop-hit path a brute never flinches at all.
 	bool HasFlinchState(){ return true;}
 
+	//Implements eLuxEnemyState_AttackMeleeLong, the running charge.
+	bool HasLungeAttack(){ return true;}
+
 	//////////////////////
 	// Movement animation names
 	virtual const tString & GetBackwardAnimationName() { return msBackwardAnimationName[mCurrentMoveType][mCurrentPose]; }

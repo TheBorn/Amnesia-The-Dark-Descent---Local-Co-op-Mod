@@ -815,7 +815,9 @@ bool cLuxEnemy_Grunt::StateEventImplement(int alState, eLuxEnemyStateEvent aEven
 		kLuxOnUpdate
 			if(mlTempVal==0)
 			{
-				mpMover->MoveToPos(GetTargetPlayer()->GetCharacterBody()->GetFeetPosition());
+				//Not GetTargetPlayer() directly: while possessed that is the
+				//possessing player's own body, parked back where they morphed.
+				mpMover->MoveToPos(GetLungeGoalPos());
 			}
 			
 

@@ -793,6 +793,23 @@ private:
  *
  * Player 1's own body is parked where it stands, not deactivated -- see Update.
  */
+/**
+ * What "Become <x>" spawns. Indices are shared with the debug menu's morph
+ * buttons (ImGuiDebugMenu::RequestEnemyMorph) and with the 1-4 keys, so the
+ * order here is the order they appear in both.
+ */
+enum eLuxMorphType
+{
+	eLuxMorphType_Grunt,
+	eLuxMorphType_Brute,
+	eLuxMorphType_Suitor,
+	eLuxMorphType_WaterLurker,
+
+	eLuxMorphType_LastEnum
+};
+
+//----------------------------------------------
+
 class cLuxPlayerPossess : public iLuxPlayerHelper
 {
 public:
@@ -806,16 +823,38 @@ public:
 	/** H. Takes whatever is under the crosshair, or gives back what we hold. */
 	void Toggle();
 
+	/**
+	 * 1-4, and the debug menu's Become buttons.
+	 *
+	 * Spawns that monster where the player stands and possesses it on the spot,
+	 * so it needs nothing on the map to work. The same type again changes back;
+	 * a different one swaps straight over.
+	 */
+	void ToggleMorph(int alMorphType);
+
+	/** Change back. Safe to call when not morphed. */
+	void Unmorph();
+
+	bool IsMorphed(){ return mlMorphType >= 0;}
+	int GetMorphType(){ return mlMorphType;}
+
 	bool IsPossessing(){ return mpEnemy != NULL;}
 	iLuxEnemy* GetPossessedEnemy(){ return mpEnemy;}
 
 	//////////////////////
 	// Input, fed from cLuxInputHandler in place of the normal player controls.
 
-	/** Camera-relative. Accumulated, consumed and cleared once per Update. */
+	/** Camera-relative. Accumulated, then consumed by PushSteerToEnemy. */
 	void AddMove(float afForward, float afRight);
 	void AddLook(float afYawAdd, float afPitchAdd);
 	void SetRunning(bool abX);
+
+	/**
+	 * Hand this tick's steering to the monster. Called from cLuxInputHandler at the
+	 * end of the player input pass, NOT from our own Update -- see the note on
+	 * iLuxEnemy::SetPossessSteer for why the difference is the whole feel of it.
+	 */
+	void PushSteerToEnemy();
 
 	/** Native melee swing. Damage lands on the animation's own event. */
 	void DoAttack();
@@ -825,12 +864,21 @@ public:
 
 private:
 	void Release();
+	bool Morph(int alMorphType);
 	iLuxEnemy* PickEnemyUnderCrosshair();
 	void BindCamera();
 	void UnbindCamera();
 	void PoseCamera();
 
 	iLuxEnemy *mpEnemy;
+
+	// Morph state. mlMorphType is -1 when the held enemy (if any) was possessed
+	// off the map rather than spawned for us -- that one is given back, ours is
+	// deleted. mpMorphMap is what it was spawned into: destroying an entity is
+	// only safe through the map that owns it and only while that map is still
+	// the one loaded.
+	int mlMorphType;
+	cLuxMap *mpMorphMap;
 
 	// Our own camera, parked on P1's viewport for the duration. See the class
 	// note: moving P1's OWN camera breaks every avatar/hands/gun visibility test.

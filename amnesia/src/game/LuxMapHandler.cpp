@@ -184,9 +184,20 @@ static void SetAvatarVisibleForCamera(cLuxPlayer *apPlayer, cCamera *apViewCam)
 	//
 	// What has to be true is that they exist in this world at all, which is the
 	// character body -- the same thing SetEntitiesVisible guards on internally.
+	// The one case where a player who IS in the room should not be drawn: while
+	// morphed they are the monster, and their own body is switched off and parked
+	// where the morph happened. Drawing it as well would put a second, motionless
+	// copy of them in the room for the other player to walk into.
+	//
+	// Possession deliberately does NOT do this -- there the body standing back
+	// there really is still them, and that is the point of it.
+	const bool bMorphed = apPlayer->GetHelperPossess() != NULL &&
+						  apPlayer->GetHelperPossess()->IsMorphed();
+
 	bool bVisible = gpBase->mpMapHandler->GetCoopMode() &&
 					apPlayer->GetCharacterBody() != NULL &&
-					apPlayer->GetCamera() != apViewCam;
+					apPlayer->GetCamera() != apViewCam &&
+					bMorphed == false;
 
 	apPlayer->GetAvatar()->SetEntitiesVisible(bVisible);
 }

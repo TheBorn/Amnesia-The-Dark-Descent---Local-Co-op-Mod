@@ -187,6 +187,26 @@ public:
     static bool  GetAllowPossession()           { return mbAllowPossession; }
     static float GetPossessCamDistance()        { return mfPossessCamDistance; }
     static float GetPossessCamHeight()          { return mfPossessCamHeight; }
+
+    // Enemy morph. Same chase camera and controls as possession, except the
+    // monster is spawned on the spot instead of taken off the map -- so it works
+    // where there is nothing to possess. Player 1 only.
+    //
+    // Turning this OFF unmorphs on the next frame, the panic button possession has.
+    static bool  GetAllowEnemyMorph()           { return mbAllowEnemyMorph; }
+
+    // The menu buttons cannot morph anybody themselves: this class is engine side
+    // and knows nothing about enemies or maps. They park a request here and
+    // cLuxPlayerPossess::Update takes it, which is also the path the 1-4 keys use.
+    //
+    // Indices match eLuxMorphType in LuxPlayerHelpers.h. -1 is "nothing pending".
+    static void RequestEnemyMorph(int alType)   { mlEnemyMorphRequest = alType; }
+    static int  ConsumeEnemyMorphRequest()
+    {
+        const int lReq = mlEnemyMorphRequest;
+        mlEnemyMorphRequest = -1;
+        return lReq;
+    }
     static float GetGunImpactForce()            { return mfGunImpactForce; }
     static float GetGunDamage()                 { return mfGunDamage; }
 
@@ -373,6 +393,8 @@ private:
     static bool  mbAllowPossession;
     static float mfPossessCamDistance;
     static float mfPossessCamHeight;
+    static bool  mbAllowEnemyMorph;
+    static int   mlEnemyMorphRequest;
     static float mfGunImpactForce;
     static float mfGunDamage;
 

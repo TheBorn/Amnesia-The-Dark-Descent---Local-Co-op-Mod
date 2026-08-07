@@ -352,6 +352,9 @@ cLuxInputHandler::cLuxInputHandler() : iLuxUpdateable("LuxInputHandler")
 	mbP1_Run_WasDown = false;
 	mbPossessKeyWasDown = false;
 
+	for(int i=0; i<(int)(sizeof(mvMorphKeyWasDown)/sizeof(mvMorphKeyWasDown[0])); ++i)
+		mvMorphKeyWasDown[i] = false;
+
 #ifdef USE_GAMEPAD
 	mbP2_A_WasDown = false;
 	mbP2_B_WasDown = false;
@@ -1319,6 +1322,31 @@ void cLuxInputHandler::UpdateGamePlayerInput()
 		mbPossessKeyWasDown = false;
 	}
 
+	/////////////////
+	// Enemy morph (debug). Player 1 only, same as possession.
+	//
+	// 1-4 read raw for the same reason H is, with one difference in our favour:
+	// the number keys are bound to no action in gvDefaultInputs at all, so unlike
+	// H there is no edge to drain afterwards.
+	//
+	// eKey_1..eKey_4 are consecutive in eKey (InputTypes.h), which is what lets
+	// one loop cover all four.
+	{
+		const int lMorphKeys = (int)(sizeof(mvMorphKeyWasDown)/sizeof(mvMorphKeyWasDown[0]));
+		const bool bCanMorph = pPossess != NULL && ::ImGuiDebugMenu::GetAllowEnemyMorph();
+
+		for(int i=0; i<lMorphKeys && i<(int)eLuxMorphType_LastEnum; ++i)
+		{
+			//Edges cleared rather than kept while the feature is off, so switching
+			//it back on with a key already held does not fire on release.
+			bool bDown = bCanMorph && mpInput->GetKeyboard()->KeyIsDown((eKey)(eKey_1 + i));
+
+			if(bDown && mvMorphKeyWasDown[i]==false) pPossess->ToggleMorph(i);
+
+			mvMorphKeyWasDown[i] = bDown;
+		}
+	}
+
 	// Movement, run, look and the two mouse buttons drive the MONSTER while this
 	// is set. Everything else -- inventory, journal, the menus, Escape -- is left
 	// alone, so there is always a way out.
@@ -1722,6 +1750,21 @@ void cLuxInputHandler::UpdateGamePlayerInput()
 		mpPlayer->AddYaw(-vFinalPos.x);
 		mpPlayer->AddPitch(-vFinalPos.y);
 	}
+
+	/////////////////
+	// Hand the possessed monster this tick's steering.
+	//
+	// Last thing in the function on purpose: both the movement keys and the mouse
+	// have now been read, so the goal it gets is built from this tick's input and
+	// this tick's camera angles.
+	//
+	// And from HERE rather than from the helper's own Update because of where the
+	// two sit in the tick. This handler is a GLOBAL module, so it runs before the
+	// "Default" container -- and cLuxMapHandler, which updates the monster, is the
+	// first module in it. Pushing here means the monster turns and brakes on a
+	// heading built this tick; pushing from cLuxPlayer, two modules further down,
+	// meant it always used the previous one.
+	if(bPossessing) pPossess->PushSteerToEnemy();
 }
 
 //-----------------------------------------------------------------------

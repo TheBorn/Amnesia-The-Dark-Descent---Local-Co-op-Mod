@@ -82,6 +82,12 @@ public:
 	void SetOverideMoveState(bool abX){ mbOverideMoveState = abX;}
 	bool GetOverideMoveState(){ return mbOverideMoveState;}
 
+	//What the walk/run animation pick settled on. Measured from real velocity
+	//against mfWalkToRunSpeed, not from what was asked for -- so it is the honest
+	//answer to "is this thing actually running", which is what decides whether a
+	//swing should be the lunge or the standing claw.
+	eLuxEnemyMoveState GetMoveState(){ return mMoveState;}
+
 	float GetStuckCounter(){ return mfStuckCounter; }
 	float GetMaxStuckCounter(){ return mfMaxStuckCounter; }
 	bool GetStuckCounterIsAtMax(){ return mfStuckCounter >= mfMaxStuckCounter;}

@@ -253,16 +253,23 @@ public:
 	/**
 	 * Break this prop whether or not its .ent says it may.
 	 *
-	 * Damage alone cannot do it: an object only breaks when its break data is
-	 * active and a swing door only when it is marked breakable, and both of
-	 * those are checked inside OnHealthChange -- so a crate the author never
-	 * meant to break absorbs any amount of damage and stays whole. The console
-	 * `destroy` is an explicit instruction and should not be refused by a flag
-	 * in a file.
+	 * What it bypasses is the PLACEMENT switch and nothing else.
 	 *
-	 * The default takes health to zero, which is all a prop with ordinary break
-	 * behaviour needs. Types that gate it override this and clear the gate.
-	 * Returns false when this prop has no way to break at all.
+	 * There are two separate flags and only one of them is a decision about this
+	 * particular prop in this particular map. `DisableBreakable` is an instance
+	 * variable -- the tick a level designer puts on one door, or one barrel, so it
+	 * survives being hit -- and that is what an explicit `destroy` overrules.
+	 *
+	 * `BreakActive` on an object and `Breakable` on a swing door come from the
+	 * ENTITY file instead, and describe whether that kind of prop has any break
+	 * behaviour at all: broken-mesh entity, debris impulse, sound, particles. A
+	 * prop whose type has none does not "resist" breaking, it simply has no break
+	 * to play -- forcing one leaves nothing to spawn and nothing to hear, and the
+	 * prop just vanishes. That is a delete wearing a different name, so it is
+	 * refused instead.
+	 *
+	 * Returns false when this prop has no way to break, which is the default: a
+	 * type opts in by overriding.
 	 */
 	virtual bool ForceBreak();
 

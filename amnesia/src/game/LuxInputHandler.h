@@ -258,6 +258,13 @@ private:
 	// cheat and its edge gets drained rather than used.
 	bool mbPossessKeyWasDown;
 
+	// Enemy morph, keys 1-4, likewise read raw and likewise needing their own
+	// edges. Unlike H these keys are bound to no eLuxAction_ at all, so there is
+	// nothing to drain. Sized to eLuxMorphType_LastEnum; the static assert that
+	// would say so lives at the loop in UpdateGamePlayerInput, where the enum is
+	// in scope -- this header does not include LuxPlayerHelpers.h.
+	bool mvMorphKeyWasDown[4];
+
 #ifdef USE_GAMEPAD
 	float mfGamepadWalkSensitivity;
 	float mfGamepadLookSensitivity;

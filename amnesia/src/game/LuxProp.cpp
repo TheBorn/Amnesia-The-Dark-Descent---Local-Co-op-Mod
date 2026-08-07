@@ -745,11 +745,10 @@ void iLuxProp::PlayAnimation(const tString& asName, float afFadeTime, bool abLoo
 
 bool iLuxProp::ForceBreak()
 {
-	//Enough for anything whose OnHealthChange breaks on zero health without
-	//first consulting a flag.
-	SetHealth(0.0f);
-
-	return true;
+	//Nothing here has a break to play. Only three prop types answer to health at
+	//all -- object, swing door and critter -- and every other OnHealthChange is
+	//empty, so taking health to zero would report success and do nothing.
+	return false;
 }
 
 //-------------------------------------------------------------------

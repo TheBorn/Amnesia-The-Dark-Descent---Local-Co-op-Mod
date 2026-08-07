@@ -26,6 +26,8 @@ bool  ImGuiDebugMenu::mbDebugGuns                 = false;
 bool  ImGuiDebugMenu::mbAllowPossession           = false;
 float ImGuiDebugMenu::mfPossessCamDistance        = 2.6f;
 float ImGuiDebugMenu::mfPossessCamHeight          = 1.15f;
+bool  ImGuiDebugMenu::mbAllowEnemyMorph           = false;
+int   ImGuiDebugMenu::mlEnemyMorphRequest         = -1;
 float ImGuiDebugMenu::mfGunImpactForce            = 5.0f;
 float ImGuiDebugMenu::mfGunDamage                 = 25.0f;
 float ImGuiDebugMenu::mfRenderScale               = 1.0f;
@@ -960,7 +962,49 @@ void ImGuiDebugMenu::Draw()
 
         ImGui::SliderFloat("Possess Cam Height", &mfPossessCamHeight, -1.0f, 3.0f, "%.2f");
         HelpMarker("Height of the point the camera looks at, measured from the\n"
-                    "monster's body centre. Raise it for the taller ones.");
+                    "monster's body centre. Raise it for the taller ones.\n\n"
+                    "Shared with Enemy Morph below.");
+
+        ImGui::Spacing();
+        ImGui::TextColored(colSectionText, "ENEMY MORPH");
+        ImGui::Separator();
+        ImGui::Spacing();
+
+        ImGui::Checkbox("Enable Morphing (1-4)", &mbAllowEnemyMorph);
+        HelpMarker("Player 1 only. Become a monster without needing one to\n"
+                    "possess: the monster is spawned where you stand and handed\n"
+                    "straight to you, and your own body is put away until you\n"
+                    "change back -- Player 2 sees the monster, not you.\n\n"
+                    "Keys 1, 2, 3 and 4 are Grunt, Brute, Suitor and Water\n"
+                    "Lurker. The same key again changes you back; a different\n"
+                    "one swaps you straight over. You come back standing where\n"
+                    "the monster was.\n\n"
+                    "Controls are possession's: move and look as normal, Shift\n"
+                    "runs, mouse 1 swings, mouse 2 smashes a door in front of\n"
+                    "you. The camera sliders above apply here too.\n\n"
+                    "A morphed monster is never written to a save, and you are\n"
+                    "changed back on a map change. Unticking this changes you\n"
+                    "back immediately -- the same panic button possession has.");
+
+        //Disabled rather than hidden, so the buttons stay where the eye learned
+        //them and the reason they do nothing is on the tin.
+        if(mbAllowEnemyMorph==false) ImGui::BeginDisabled();
+
+        if(ImGui::Button("Become Grunt"))        RequestEnemyMorph(0);
+        ImGui::SameLine();
+        if(ImGui::Button("Become Brute"))        RequestEnemyMorph(1);
+
+        if(ImGui::Button("Become Suitor"))       RequestEnemyMorph(2);
+        ImGui::SameLine();
+        if(ImGui::Button("Become Water Lurker")) RequestEnemyMorph(3);
+
+        if(mbAllowEnemyMorph==false) ImGui::EndDisabled();
+
+        HelpMarker("The Suitor lives in the Justine content (entities/ptest); if\n"
+                    "that is not installed the morph is refused and says so.\n\n"
+                    "A Water Lurker has no model to show unless Show Water\n"
+                    "Lurkers is on, and it only swims -- on dry land you get an\n"
+                    "invisible monster that will not move.");
 
         ImGui::Spacing();
         ImGui::TextColored(colSectionText, "DEBUG GUNS");

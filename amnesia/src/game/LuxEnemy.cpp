@@ -446,6 +446,11 @@ iLuxEnemy::iLuxEnemy(const tString &asName, int alID, cLuxMap *apMap, eLuxEnemyT
 	mbPossessed = false;
 	mbSanityDecreaseBeforePossess = true;
 
+	mvPossessMoveDir = cVector3f(0,0,0);
+	mvPossessAimDir = cVector3f(0,0,0);
+	mbPossessMoveWanted = false;
+	mbPossessRunning = false;
+
 	mbKilled = false;
 	mbRagdollActive = false;
 	mfPropHitCooldown = 0;
@@ -657,7 +662,12 @@ void iLuxEnemy::OnUpdate(float afTimeStep)
 	// effects all live there, and it is purely a slave to whoever last called
 	// MoveToPos / TurnToAngle. That is what makes a possessed enemy move like the
 	// real thing instead of like a puppet.
+	// The player's steering goes HERE, in the slot the pathfinder just vacated, and
+	// not in the possess helper's own Update -- that runs two modules later in the
+	// tick, so everything below would have read a goal one tick out of date.
 	if(mbPossessed==false) mpPathfinder->OnUpdate(afTimeStep);
+	else                   UpdatePossessedSteer();
+
 	mpMover->OnUpdate(afTimeStep);
 
 	//////////////////////
@@ -1347,6 +1357,67 @@ void iLuxEnemy::ChangeState(eLuxEnemyState aState)
 
 //-----------------------------------------------------------------------
 
+//How far ahead the steering goal is placed. cLuxEnemyMover::TurnToPos only takes
+//an ANGLE from it, so the exact distance does not matter -- it only has to be
+//comfortably past the mover's own arrival radius so the goal never counts as
+//reached. Same reason the pathfinder aims at a node rather than at the player's feet.
+static const float gfPossessSteerGoalDist = 4.0f;
+
+//-----------------------------------------------------------------------
+
+void iLuxEnemy::SetPossessSteer(const cVector3f& avMoveDir, const cVector3f& avAimDir, bool abRunning)
+{
+	mbPossessRunning = abRunning;
+
+	//Last non-zero kept on purpose: a lunge fired after the movement keys were let
+	//go still needs a direction, and the alternative -- the body's own forward --
+	//is where it happens to have finished turning rather than where it was going.
+	mbPossessMoveWanted = avMoveDir.SqrLength() > 0.0001f;
+	if(mbPossessMoveWanted) mvPossessMoveDir = avMoveDir;
+
+	if(avAimDir.SqrLength() > 0.0001f) mvPossessAimDir = avAimDir;
+}
+
+//-----------------------------------------------------------------------
+
+void iLuxEnemy::UpdatePossessedSteer()
+{
+	if(mbPossessMoveWanted==false) return;
+	if(mpCharBody==NULL) return;
+
+	//Literally what cLuxEnemyPathfinder::UpdateMoving does with its next node, and
+	//deliberately nothing more: MoveToPos is TurnToPos plus Move(Forward, 1), so the
+	//turn rate, the skid on a hard turn and the walk/run pick are all the monster's.
+	mpMover->MoveToPos(mpCharBody->GetPosition() + mvPossessMoveDir * gfPossessSteerGoalDist);
+
+	//Consumed. No push next tick -- the player let go -- means no move next tick.
+	mbPossessMoveWanted = false;
+}
+
+//-----------------------------------------------------------------------
+
+cVector3f iLuxEnemy::GetLungeGoalPos()
+{
+	if(mbPossessed && mpCharBody)
+	{
+		//Where the camera looks, falling back to the last steering direction and
+		//then to the body's own forward, so there is always an answer.
+		cVector3f vDir = mvPossessAimDir;
+		if(vDir.SqrLength() <= 0.0001f) vDir = mvPossessMoveDir;
+		if(vDir.SqrLength() <= 0.0001f) vDir = mpCharBody->GetForward();
+
+		vDir.y = 0;
+		if(vDir.SqrLength() > 0.0001f)	vDir.Normalize();
+		else							vDir = cVector3f(0,0,1);
+
+		return mpCharBody->GetFeetPosition() + vDir * gfPossessSteerGoalDist;
+	}
+
+	return GetTargetPlayer()->GetCharacterBody()->GetFeetPosition();
+}
+
+//-----------------------------------------------------------------------
+
 void iLuxEnemy::SetPossessed(bool abX)
 {
 	if(mbPossessed == abX) return;
@@ -1399,6 +1470,12 @@ void iLuxEnemy::SetPossessed(bool abX)
 	{
 		mbCausesSanityDecrease = mbSanityDecreaseBeforePossess;
 		mpMover->ResetStuckCounter();
+
+		//No leftover steering for the AI to inherit on its first frame back.
+		mvPossessMoveDir = cVector3f(0,0,0);
+		mvPossessAimDir = cVector3f(0,0,0);
+		mbPossessMoveWanted = false;
+		mbPossessRunning = false;
 
 		//Left in Idle on purpose. Restoring the state it held when possessed would
 		//re-run that state's kLuxOnEnter without the history that earned it -- Hunt

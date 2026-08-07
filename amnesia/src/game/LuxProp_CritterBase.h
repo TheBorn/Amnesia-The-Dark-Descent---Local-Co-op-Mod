@@ -113,6 +113,10 @@ public:
 	void OnHealthChange();
 	void OnDamage(float afAmount, int alStrength);
 
+	//A critter has a real death -- sound, particles and a corpse entity -- and no
+	//flag guarding any of it, so zero health is the whole of it.
+	bool ForceBreak(){ SetHealth(0.0f); return true;}
+
 	bool CausesSanityDecrease(){ return mbCausesSanityDecrease;}
 
 	//////////////////////
