@@ -4,6 +4,14 @@ Split-Screen / Dual Monitor Local Co-op for *Amnesia: The Dark Descent*, built o
 [Amnesia64](https://github.com/buzer2020/Amnesia64) 64-bit fork of Frictional Games'
 open-source HPL2 engine.
 
+Videos
+
+https://streamable.com/lioopm
+https://streamable.com/1kgreu
+https://streamable.com/9bkbmg
+https://streamable.com/1881zf
+https://streamable.com/s8d2nm
+
 Player 1 uses keyboard and mouse. Player 2 uses a gamepad, and has Justine's sounds effects.
 
 > **This is experimental.** The main game and every existing custom story were written
