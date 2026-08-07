@@ -6,7 +6,7 @@ open-source HPL2 engine.
 
 Videos
 
-> **These videos are from various testing runs** and do not show the mod in its fullness.
+> These videos are from various **testing runs** and do not show the mod in its fullness.
 
 
 https://streamable.com/lioopm
