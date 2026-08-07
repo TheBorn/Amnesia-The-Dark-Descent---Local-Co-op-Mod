@@ -87,7 +87,12 @@ bool InitPaths(const tWString& asInitConfigFile, const tWString &asDefaultInitCo
 	// Load the Init file
 	cConfigFile *pInitCfg = hplNew(cConfigFile, (sInitConfigFile));
 	if(pInitCfg->Load()==false){
-		fl_message("%s",cString::To8Char((_W("Could not load main init file: ")+asInitConfigFile)).c_str());
+		//Same reasoning as cLuxBase::Init: name the character that broke it.
+		tString sLauncherParseError = pInitCfg->GetParseError();
+		if(sLauncherParseError != "") sLauncherParseError = "\n\n" + sLauncherParseError;
+
+		fl_message("%s",(cString::To8Char(_W("Could not load main init file: ")+asInitConfigFile)
+						+ sLauncherParseError).c_str());
 		return false;
 	}
 	

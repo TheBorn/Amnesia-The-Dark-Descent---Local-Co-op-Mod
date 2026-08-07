@@ -806,6 +806,13 @@ bool cLuxBase::InitApp()
 #endif
 	if(pInitCfg->Load()==false){
 		msErrorMessage =_W("Could not load main init file: ")+msInitConfigFile;
+
+		//The file is XML and a single stray character in it stops the game here. Say
+		//which character, rather than leaving the player to guess at their own edit.
+		const tString sParseError = pInitCfg->GetParseError();
+		if(sParseError != "")
+			msErrorMessage += _W("\n\n") + cString::To16Char(sParseError);
+
 		return false;
 	}
 	

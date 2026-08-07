@@ -1136,6 +1136,57 @@ const char* TiXmlElement::Parse( const char* p, TiXmlParsingData* data, TiXmlEnc
 				return 0;
 			}
 		}
+		else if ( *p == ',' )
+		{
+			//////////////////////////////////////////////////////////////////////
+			// COMMA-CONTINUED ATTRIBUTE VALUE. An extension, not stock TinyXML.
+			//
+			//    CustomStoryPath = "custom_stories", "D:\Amnesia Stories"
+			//
+			// is how a person writes a list, and it is the form Amnesia's own
+			// main_init.cfg advertises for CustomStoryPath. Stock TinyXML hands the
+			// comma to ReadName, which starts a name only on a letter or an
+			// underscore -- so the attribute fails, the element fails, the document
+			// fails, and the game stops on "Could not load main init file" having
+			// said nothing about which character did it.
+			//
+			// Each further quoted string is appended to the attribute before it with
+			// a comma between, so the line above arrives as one value reading
+			// custom_stories,D:\Amnesia Stories -- exactly what the single-value form
+			// "custom_stories, D:\Amnesia Stories" already produces, and what
+			// cString::GetQuotedStringVec splits back apart.
+			//
+			// Only ever reached where stock TinyXML was about to fail outright: a
+			// comma in this position is not valid XML and never meant anything else.
+			// No document that parses today parses differently.
+			++p;
+			p = SkipWhiteSpace( p, encoding );
+
+			TiXmlAttribute* prev = attributeSet.Last();
+
+			const char COMMA_SINGLE_QUOTE = '\'';
+			const char COMMA_DOUBLE_QUOTE = '\"';
+
+			// A comma with no attribute in front of it, or one not followed by a
+			// quoted string, is a real syntax error and is still reported as one.
+			if ( !p || !*p || prev == 0 ||
+				( *p != COMMA_SINGLE_QUOTE && *p != COMMA_DOUBLE_QUOTE ) )
+			{
+				if ( document ) document->SetError( TIXML_ERROR_READING_ATTRIBUTES, pErr, data, encoding );
+				return 0;
+			}
+
+			const char* commaEnd = ( *p == COMMA_SINGLE_QUOTE ) ? "\'" : "\"";
+			++p;
+
+			TIXML_STRING extraValue;
+			p = ReadText( p, &extraValue, false, commaEnd, false, encoding );
+
+			TIXML_STRING joinedValue = prev->Value();
+			joinedValue += ",";
+			joinedValue += extraValue;
+			prev->SetValue( joinedValue.c_str() );
+		}
 		else
 		{
 			// Try to read an attribute:

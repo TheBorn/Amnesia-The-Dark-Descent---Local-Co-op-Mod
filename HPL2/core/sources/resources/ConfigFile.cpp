@@ -114,8 +114,30 @@ namespace hpl {
 			bool bRet = mpXmlDoc->LoadFile(pFile);
 
 			if(pFile) fclose(pFile);
+
+			//Said out loud rather than left in the return value. A config file that
+			//will not parse stops the game, so the one useful fact -- which character
+			//-- should not need a debugger to find.
+			if(bRet==false)
+			{
+				Error("Parsing config file '%s' failed: %s (row %d, column %d)\n",
+						cString::To8Char(msFile).c_str(), mpXmlDoc->ErrorDesc(),
+						mpXmlDoc->ErrorRow(), mpXmlDoc->ErrorCol());
+			}
+
 			return bRet;
 		}
+	}
+
+	//-----------------------------------------------------------------------
+
+	tString cConfigFile::GetParseError()
+	{
+		if(mpXmlDoc==NULL || mpXmlDoc->Error()==false) return "";
+
+		return tString(mpXmlDoc->ErrorDesc()) +
+				" (row " + cString::ToString(mpXmlDoc->ErrorRow()) +
+				", column " + cString::ToString(mpXmlDoc->ErrorCol()) + ")";
 	}
 
 	//-----------------------------------------------------------------------

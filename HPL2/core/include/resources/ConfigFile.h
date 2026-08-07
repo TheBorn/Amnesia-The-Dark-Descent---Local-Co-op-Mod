@@ -40,6 +40,15 @@ namespace hpl {
 		 * \return true if loading ws ok, else false
 		 */
 		bool Load();
+
+		/**
+		 * Why the last Load() failed, ready to show someone, or "" if it did not.
+		 *
+		 * TinyXML knows the description, the row and the column; none of that used to
+		 * leave this class, so a single mistyped character in main_init.cfg produced
+		 * "Could not load main init file" and nothing else to go on.
+		 */
+		tString GetParseError();
 		/**
 		 * Saves the data to file
 		 * \return true if loading ws ok, else false
