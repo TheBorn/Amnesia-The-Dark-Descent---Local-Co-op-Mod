@@ -7,9 +7,13 @@ open-source HPL2 engine.
 Videos
 
 https://streamable.com/lioopm
+
 https://streamable.com/1kgreu
+
 https://streamable.com/9bkbmg
+
 https://streamable.com/1881zf
+
 https://streamable.com/s8d2nm
 
 Player 1 uses keyboard and mouse. Player 2 uses a gamepad, and has Justine's sounds effects.
