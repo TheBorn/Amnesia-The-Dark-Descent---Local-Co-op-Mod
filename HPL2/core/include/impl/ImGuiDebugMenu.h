@@ -35,6 +35,17 @@ public:
     //                            caller -- so the whole compat layer steps
     //                            aside and each option is LOCKED to the value
     //                            that keeps the engine out of the story's way.
+    // ------------------------------------------------------------------
+    // CO-OP STATE readout. One block of text, built game-side (this class is
+    // engine side and knows nothing about players, journals or containers) and
+    // printed verbatim under CO-OP STATE in the menu.
+    //
+    // It exists because every co-op menu bug so far has looked identical from
+    // the outside -- "nothing happened" -- while having a different cause each
+    // time, and guessing between them has cost more rebuilds than it is worth.
+    static void SetCoopDiagCallback(std::function<std::string()> aFn);
+    static std::string GetCoopDiag();
+
     static void SetForcedCoopStateCallback(std::function<int()> aFn);
     static int  GetForcedCoopState();
     static bool IsNativeCoopStory() { return GetForcedCoopState() == 2; }
@@ -195,6 +206,34 @@ public:
     // Turning this OFF unmorphs on the next frame, the panic button possession has.
     static bool  GetAllowEnemyMorph()           { return mbAllowEnemyMorph; }
 
+    // Player 2's input source. 0 = gamepad (the original, and the default),
+    // 1 = a second keyboard and mouse told apart by Windows raw input.
+    //
+    // GetP2RawDevice() is the device handle that belongs to Player 2 when the
+    // source is 1. Zero is not "unset" -- it is the meaningful value for a
+    // streamed guest, because injected input carries no device handle.
+    static int   GetP2InputSource()             { return mlP2InputSource; }
+    static void* GetP2RawDevice()               { return mpP2RawDevice; }
+    static bool  GetP2UsesRawInput()            { return mlP2InputSource == 1; }
+
+    // Player 2's MOUSE, which is a different device with a different handle from
+    // their keyboard. Asking a keyboard handle for mouse motion or mouse buttons
+    // answers "none" -- so with only the keyboard picked, Player 2's mouse was
+    // never subtracted from Player 1's view and Player 2's clicks never arrived.
+    //
+    // Defaults to the injected handle, which is correct with no picking at all
+    // for a streamed guest: injected input carries no device, keyboard and mouse
+    // alike.
+    static void* GetP2RawMouse()                { return mpP2RawMouse; }
+
+    // True once a human has picked Player 2's mouse in this menu. The automatic
+    // pairing in cLuxInputHandler leaves a hand-picked device alone, and only a
+    // hand-picked one -- otherwise it would keep overruling the person who set it.
+    static bool  GetP2RawMouseUserSet()         { return mbP2RawMouseUserSet; }
+
+    // For the automatic pairing. Deliberately does NOT set the user flag.
+    static void  SetP2RawMouseAuto(void *apDevice) { mpP2RawMouse = apDevice; }
+
     // The menu buttons cannot morph anybody themselves: this class is engine side
     // and knows nothing about enemies or maps. They park a request here and
     // cLuxPlayerPossess::Update takes it, which is also the path the 1-4 keys use.
@@ -293,6 +332,46 @@ public:
         mlDiagTotalViewports   = alTotal;
     }
     static void AddDiagShadowMapRender()        { ++mlDiagShadowMapRendersAccum; }
+
+    /**
+     * BLACK FRAME CATCHER.
+     *
+     * A visible viewport that draws no world is a black half-screen for that
+     * frame. cScene::Render already counted them and threw the number away, so
+     * the flicker has never been anything but "it happens sometimes".
+     *
+     * Reported by REASON, because the four ways to reach it are indistinguishable
+     * on screen and want completely different fixes: a null renderer, a null
+     * world, a null camera or frustum, or a viewport that stayed visible with
+     * nothing behind it. Latched with a running total and the frame it last
+     * happened on, because it lasts one or two frames and no one can read a live
+     * value that fast.
+     */
+    static void ReportBlackViewportFrame(int alViewportIndex, bool abHasRenderer,
+                                         bool abHasWorld, bool abHasCamera, bool abHasFrustum,
+                                         int alFrame)
+    {
+        ++mlDiagBlackViewportCount;
+        mlDiagBlackViewportLastFrame = alFrame;
+
+        snprintf(msDiagBlackViewport, sizeof(msDiagBlackViewport),
+                 "vp %d: renderer %s, world %s, camera %s, frustum %s",
+                 alViewportIndex,
+                 abHasRenderer ? "ok" : "NULL",
+                 abHasWorld    ? "ok" : "NULL",
+                 abHasCamera   ? "ok" : "NULL",
+                 abHasFrustum  ? "ok" : "NULL");
+    }
+
+    static int  GetDiagBlackViewportCount()     { return mlDiagBlackViewportCount; }
+    static int  GetDiagBlackViewportLastFrame() { return mlDiagBlackViewportLastFrame; }
+    static const char* GetDiagBlackViewportText(){ return msDiagBlackViewport; }
+    static void ResetDiagBlackViewport()
+    {
+        mlDiagBlackViewportCount = 0;
+        mlDiagBlackViewportLastFrame = -1;
+        msDiagBlackViewport[0] = 0;
+    }
 
     /**
      * One line per co-op avatar, pushed by the game layer every frame.
@@ -395,6 +474,14 @@ private:
     static float mfPossessCamHeight;
     static bool  mbAllowEnemyMorph;
     static int   mlEnemyMorphRequest;
+    static int   mlP2InputSource;
+    static void *mpP2RawDevice;
+    static void *mpP2RawMouse;
+    static bool  mbP2RawMouseUserSet;
+
+    static int  mlDiagBlackViewportCount;
+    static int  mlDiagBlackViewportLastFrame;
+    static char msDiagBlackViewport[160];
     static float mfGunImpactForce;
     static float mfGunDamage;
 
@@ -431,6 +518,7 @@ private:
 
     // Forced-coop state callback (see GetForcedCoopState above)
     static std::function<int()>      mGetForcedCoopStateFn;
+    static std::function<std::string()> mGetCoopDiagFn;
 
     // Coop Options callbacks (story-owned values on the map handler)
     static std::function<float(int)>      mGetCoopOptionFn;

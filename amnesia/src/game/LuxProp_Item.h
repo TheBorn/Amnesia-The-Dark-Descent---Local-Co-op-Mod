@@ -35,6 +35,7 @@ public:
 	int mlSpawnContainerID;
 	float mfAmount;
 	tString msSubItemTypeName;
+	bool mbReadByBoth;
 };
 
 
@@ -75,6 +76,14 @@ public:
 
 	float GetAmount(){ return mfAmount;}
 
+	/**
+	 * Level editor instance variable. Co-op: a story that DECLARES support reads
+	 * its notes one player at a time unless the author ticks this, in which case
+	 * the game stops and both of them read it together. Forced co-op ignores it
+	 * and shares everything -- there is no author to have ticked anything.
+	 */
+	bool GetReadByBoth(){ return mbReadByBoth;}
+
 	int GetSpawnContainerID() { return mlSpawnContainerID;}
 	void SetSpawnContainerID(int alX) { mlSpawnContainerID = alX;}
 	
@@ -97,6 +106,7 @@ private:
 	tString msExtraVal;
 
 	int mlSpawnContainerID;
+	bool mbReadByBoth;
 
 	float mfFlashAlpha;
 

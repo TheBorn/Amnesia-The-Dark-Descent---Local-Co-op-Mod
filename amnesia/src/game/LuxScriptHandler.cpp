@@ -2253,7 +2253,16 @@ void __stdcall cLuxScriptHandler::SetLanternLitCallback(string &asCallback)
 
 void __stdcall cLuxScriptHandler::SetMessage(string &asTextCategory, string &asTextEntry, float afTime)
 {
-	gpBase->mpMessageHandler->SetMessage(kTranslate(asTextCategory, asTextEntry), afTime);
+	//////////////////////////////////////////////////////////////////////////
+	// A plain SetMessage is the story talking to whoever is playing, which in
+	// forced co-op is both of them. SetMessage1 and SetMessage2 name a player,
+	// and gbCoopScriptStrictPlayer is true for exactly as long as one of those is
+	// running -- so that is the honest test for "was a player asked for by name",
+	// rather than looking at which player happens to be acting.
+	if(gbCoopScriptStrictPlayer)
+		gpBase->mpMessageHandler->SetMessage(kTranslate(asTextCategory, asTextEntry), afTime);
+	else
+		gpBase->mpMessageHandler->SetMessageForBoth(kTranslate(asTextCategory, asTextEntry), afTime);
 }
 
 //-----------------------------------------------------------------------

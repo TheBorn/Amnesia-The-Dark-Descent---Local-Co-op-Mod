@@ -287,6 +287,12 @@ void cLuxEffect_EmotionFlash::Start(const tString &asTextCat, const tString &asT
 
 	gpBase->mpEffectHandler->SetPlayerIsPausedFor(mpActingPlayer, true);
 	mpActingPlayer->FadeFOVMulTo(0.5f, 0.5f);
+
+	//The blur belongs to the player who touched the stone, the same way the zoom
+	//above does. There is one shared radial blur and cLuxMapHandler mirrors it
+	//onto both halves, so without an owner Player 1 got tunnel vision from a
+	//vision they were not in and could not see.
+	gpBase->mpEffectHandler->SetRadialBlurOwner(mpActingPlayer);
 	gpBase->mpEffectHandler->GetRadialBlur()->FadeTo(0.15f, 3);
 	gpBase->mpEffectHandler->GetRadialBlur()->SetBlurStartDist(0.6f);
 
@@ -298,6 +304,8 @@ void cLuxEffect_EmotionFlash::Start(const tString &asTextCat, const tString &asT
 void cLuxEffect_EmotionFlash::Reset()
 {
 	mpActingPlayer = NULL;
+
+	if(gpBase->mpEffectHandler) gpBase->mpEffectHandler->SetRadialBlurOwner(NULL);
 }
 
 //-----------------------------------------------------------------------
@@ -358,6 +366,11 @@ void cLuxEffect_EmotionFlash::Update(float afTimeStep)
 		if(mfAlpha <= 0.0f)
 		{
 			mbActive = false;
+
+			//Released only now, not when the fade started: the blur is still fading
+			//out over these last seconds and it is still this player's.
+			if(gpBase->mpEffectHandler->GetRadialBlurOwner() == GetActingPlayer())
+				gpBase->mpEffectHandler->SetRadialBlurOwner(NULL);
 		}
 	}
 }
@@ -412,6 +425,25 @@ void cLuxEffect_EmotionFlash::DoAction(eLuxPlayerAction aAction, bool abPressed)
 	if(abPressed==false) return;
 
 	if(mlStep==1) mfTextTime = 0;
+}
+
+//-----------------------------------------------------------------------
+
+void cLuxEffect_EmotionFlash::DoActionForPlayer(cLuxPlayer *apPlayer, eLuxPlayerAction aAction, bool abPressed)
+{
+	//The vision belongs to whoever set it off. It froze them and it is drawn on
+	//their half alone, so it is theirs to press through -- and the other player,
+	//who is still walking around and cannot see a word of it, must not be able to
+	//skip text off their partner's screen with an ordinary interact click.
+	//
+	//GetActingPlayer falls back to Player 1 whenever the remembered actor is not
+	//one of the live players, so a vision restored from a save, or one whose owner
+	//has been destroyed, is still skippable. Nothing here can strand anybody in
+	//any case: Update() ends the vision on its own timer whether or not a button
+	//is ever pressed.
+	if(apPlayer && apPlayer != GetActingPlayer()) return;
+
+	DoAction(aAction, abPressed);
 }
 
 //-----------------------------------------------------------------------
@@ -484,6 +516,12 @@ void cLuxEffect_RadialBlur::Update(float afTimeStep)
 	if(mfSize <=0)
 	{
 		gpBase->mpMapHandler->GetPostEffect_RadialBlur()->SetActive(false);
+
+		//The blur is over, so whoever it belonged to has stopped owning it. Done
+		//HERE rather than by each source: there is one place a blur can end and
+		//several that can start one, and an owner left behind would hold the next
+		//blur -- a script's, meant for both halves -- on one screen.
+		if(gpBase->mpEffectHandler) gpBase->mpEffectHandler->SetRadialBlurOwner(NULL);
 	}
 }
 
@@ -1601,6 +1639,7 @@ void cLuxEffectHandler::Reset()
 	}
 
 	mbPlayerIsPaused = false;
+	mpRadialBlurOwner = NULL;
 }
 
 //-----------------------------------------------------------------------
@@ -1653,6 +1692,17 @@ void cLuxEffectHandler::DoAction(eLuxPlayerAction aAction, bool abPressed)
 	{
 		iLuxEffect *pEffect = mvEffects[i];
 		if(pEffect->IsActive()) pEffect->DoAction(aAction, abPressed);
+	}
+}
+
+//-----------------------------------------------------------------------
+
+void cLuxEffectHandler::DoActionForPlayer(cLuxPlayer *apPlayer, eLuxPlayerAction aAction, bool abPressed)
+{
+	for(size_t i=0; i<mvEffects.size(); ++i)
+	{
+		iLuxEffect *pEffect = mvEffects[i];
+		if(pEffect->IsActive()) pEffect->DoActionForPlayer(apPlayer, aAction, abPressed);
 	}
 }
 

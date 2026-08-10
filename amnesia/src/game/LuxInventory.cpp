@@ -901,8 +901,13 @@ void cLuxInventory::OnEnterContainer(const tString& asOldContainer)
 	//instead: P1 has a mouse, P2 has the pad. Single player is unchanged.
 	bool bPadUI = gpBase->mpInputHandler->IsGamepadPresent();
 	if(gpBase->mpMapHandler->GetCoopMode())
-		bPadUI = GetActivePlayer()->IsPlayer2();
+		bPadUI = GetActivePlayer()->IsPlayer2() && ::ImGuiDebugMenu::GetP2UsesRawInput()==false;
 
+	//P2 holding their OWN mouse is not a pad. GetP2UsesRawInput means P2 is on a
+	//second keyboard and mouse, so they want a cursor exactly like P1 does --
+	//without this their menu opened with the pointer hidden and mouse movement
+	//switched off, and with no pad to navigate with there was nothing left that
+	//could close it.
 	mpGuiSet->SetDrawMouse(bPadUI==false);
 	mpGuiSet->SetMouseMovementEnabled(bPadUI==false);
 	mpGuiSet->SetDrawFocus(bPadUI);
@@ -1675,7 +1680,7 @@ void cLuxInventory::AppDeviceWasPlugged()
 	bool bPadUI = gpBase->mpInputHandler->IsGamepadPresent();
 
 	if(gpBase->mpMapHandler->GetCoopMode() && GetActivePlayer())
-		bPadUI = GetActivePlayer()->IsPlayer2();
+		bPadUI = GetActivePlayer()->IsPlayer2() && ::ImGuiDebugMenu::GetP2UsesRawInput()==false;
 
 	mpGuiSet->SetDrawFocus(bPadUI);
 }

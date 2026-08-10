@@ -152,6 +152,10 @@ cLuxItemType_Note::cLuxItemType_Note() : iLuxItemType("Note", eLuxItemType_Note)
 
 bool cLuxItemType_Note::BeforeAddItem(cLuxInventory_Item *apItem)
 {
+	//First thing, and unconditionally: the latch belongs to THIS pickup and must
+	//not survive it, whichever way the function leaves.
+	const bool bReadByBoth = gpBase->mpJournal->ConsumeNextNoteReadByBoth();
+
 	cLuxNote *pNote = gpBase->mpJournal->AddNote(apItem->GetStringVal(), apItem->GetImageName());
 	if(pNote==NULL)return true;
 
@@ -159,9 +163,41 @@ bool cLuxItemType_Note::BeforeAddItem(cLuxInventory_Item *apItem)
 
 	if(apItem->GetAmount() > 0)
 	{
-		//Coop: picked up in the WORLD, so it happened to the party -- both read it.
-		//Owner is still whoever picked it up, so the OTHER player keeps moving.
-		gpBase->mpJournal->SetShowOnBothPlayers(true);
+		//////////////////////////////////////////////////////////////////////
+		// WHO READS THIS.
+		//
+		// FORCED co-op is a single-player story two people are playing anyway.
+		// Nothing in it was written for two readers and there is no author to
+		// ask, so a note found in the world is treated as a thing that happened
+		// to the PARTY: the game stops, both of them read it, and either of them
+		// may turn the page or put it down.
+		//
+		// A story that DECLARES co-op support gets the opposite default, because
+		// there somebody can decide. Only the player who picked it up reads it,
+		// the world keeps running for the other one, and a note meant for the
+		// pair is ticked "ReadByBoth" on the prop in the level editor -- which
+		// then behaves exactly like the forced-co-op case.
+		//
+		// Outside co-op both flags are false and this is the original code path.
+		const bool bShared = gpBase->mpMapHandler->GetCoopMode() &&
+							(::ImGuiDebugMenu::IsNativeCoopStory()==false || bReadByBoth);
+
+		//Latched for the CO-OP STATE readout: every one of these is cleared the
+		//instant the journal closes, so without this there is nothing left to look
+		//at afterwards and the only way to tell what happened is to guess.
+		gpBase->mpJournal->SetLastNoteDecision(
+			"note coop=" + cString::ToString((int)gpBase->mpMapHandler->GetCoopMode()) +
+			" nativeStory=" + cString::ToString((int)::ImGuiDebugMenu::IsNativeCoopStory()) +
+			" readByBoth=" + cString::ToString((int)bReadByBoth) +
+			" -> shared=" + cString::ToString((int)bShared) +
+			" picker=" + tString(gpBase->mpPlayer && gpBase->mpPlayer->IsPlayer2() ? "P2" : "P1"));
+
+		gpBase->mpJournal->SetShowOnBothPlayers(bShared);
+		gpBase->mpJournal->SetPauseBothPlayers(bShared);
+
+		//gpBase->mpPlayer IS the picker here: an interaction by P2 runs inside
+		//cLuxPlayer::CoopBeginActAs, which swaps them in for the duration. Not a
+		//shortcut -- it is how every other per-player path in this file reads.
 		gpBase->mpJournal->SetActivePlayer(gpBase->mpPlayer);
 		gpBase->mpEngine->GetUpdater()->SetContainer("Journal");
 		gpBase->mpJournal->SetForceInstantExit(true);
@@ -204,6 +240,9 @@ cLuxItemType_Diary::cLuxItemType_Diary() : iLuxItemType("Diary", eLuxItemType_Di
 
 bool cLuxItemType_Diary::BeforeAddItem(cLuxInventory_Item *apItem)
 {
+	//See the note at the top of cLuxItemType_Note::BeforeAddItem.
+	const bool bReadByBoth = gpBase->mpJournal->ConsumeNextNoteReadByBoth();
+
 	int lDiaryIdx;
 	cLuxDiary *pDiary = gpBase->mpJournal->AddDiary(apItem->GetStringVal(), apItem->GetImageName(), lDiaryIdx);
 	if(pDiary==NULL) return true;
@@ -221,8 +260,13 @@ bool cLuxItemType_Diary::BeforeAddItem(cLuxInventory_Item *apItem)
 
 	if(mbShowJournalOnPickup)
 	{
-		//Coop: same as a note picked up in the world -- both players read it.
-		gpBase->mpJournal->SetShowOnBothPlayers(true);
+		//Coop: same rule as a note picked up in the world. See the long note in
+		//cLuxItemType_Note::BeforeAddItem.
+		const bool bShared = gpBase->mpMapHandler->GetCoopMode() &&
+							(::ImGuiDebugMenu::IsNativeCoopStory()==false || bReadByBoth);
+
+		gpBase->mpJournal->SetShowOnBothPlayers(bShared);
+		gpBase->mpJournal->SetPauseBothPlayers(bShared);
 		gpBase->mpJournal->SetActivePlayer(gpBase->mpPlayer);
 		gpBase->mpEngine->GetUpdater()->SetContainer("Journal");
 		gpBase->mpJournal->SetForceInstantExit(true);

@@ -966,7 +966,10 @@ void cLuxPlayerFlashback::Update(float afTimeStep)
 			//Sepia
 			gpBase->mpEffectHandler->GetSepiaColor()->FadeTo(1, 1.0f / 3.5f);
 
-			//Radial blur
+			//Radial blur -- the flashback is this player's, and so is the blur.
+			//Shared Flashback Visions, when it is on, starts the sequence on the
+			//other player too, and theirs claims it in their own turn through here.
+			gpBase->mpEffectHandler->SetRadialBlurOwner(mpPlayer);
 			gpBase->mpEffectHandler->GetRadialBlur()->SetBlurStartDist(mfRadialBlurStartDist);
 			gpBase->mpEffectHandler->GetRadialBlur()->FadeTo(mfRadialBlurSize, mfRadialBlurSize / 3.5f);
 			
@@ -1503,6 +1506,10 @@ void cLuxPlayerSanity::UpdateCheckEnemySeen(float afTimeStep)
 		if(mbEnemyIsSeen)
 		{
 			mbEnemyIsSeen = false;
+
+			//Still theirs while it fades out, or the last half second of it would
+			//jump onto the other player's screen on the way down.
+			gpBase->mpEffectHandler->SetRadialBlurOwner(mpPlayer);
 			gpBase->mpEffectHandler->GetRadialBlur()->FadeTo(0, 0.12f / 2.0f);
 		}
 	}
@@ -1559,6 +1566,16 @@ void cLuxPlayerSanity::UpdateEnemySeenEffect(float afTimeStep)
 		
 		float fPulse = 0.5f + (sin(mfT*2.5f)*0.5f + 0.5f)*0.5f;
 		
+		//////////////////////////////////////////////////////////////////
+		// THIS player's blur. cLuxPlayerSanity is per player and mbEnemyIsSeen
+		// is measured from this player's own eyes -- but the radial blur behind
+		// it is one shared post effect that cLuxMapHandler mirrors onto both
+		// halves, so Player 2 walking into a monster put the tunnel vision on
+		// Player 1's screen too, in an empty corridor.
+		//
+		// Released centrally, when the blur reaches zero -- see
+		// cLuxEffect_RadialBlur::Update.
+		gpBase->mpEffectHandler->SetRadialBlurOwner(mpPlayer);
 		gpBase->mpEffectHandler->GetRadialBlur()->SetBlurStartDist(0.2f);
 		gpBase->mpEffectHandler->GetRadialBlur()->FadeTo(0.12f * mfSeenEnemyCount*fPulse, 10.0f);
 	}

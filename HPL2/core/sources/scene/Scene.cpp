@@ -84,6 +84,7 @@ namespace hpl {
 
 		//Nothing has been drawn yet, so the first frame is always presentable and there
 		//is no previous world render to compare against.
+		mlHeldBlackFrames = 0;
 	}
 
 	//-----------------------------------------------------------------------
@@ -206,14 +207,38 @@ namespace hpl {
 		// Expect 1 in single player and 2 in split-screen co-op. A 3 is the bug.
 		int lVisibleViewports = 0;
 		cViewport *pOnlyVisibleViewport = NULL;
+
+		////////////////////////////////////////////////////////////////////////
+		// Of the visible ones, how many will actually PUT SOMETHING DOWN.
+		//
+		// A viewport owning a renderer but missing its world, camera or frustum
+		// draws nothing at all, and the clear below has already blanked the
+		// buffer for it. Counted separately here so the clear can be told about
+		// it; see the note where it is used.
+		//
+		// A viewport with NO renderer is not dead -- that is a GUI-only overlay
+		// (the dual-monitor menu mirror, the load screen) and it never had a
+		// world to draw in the first place.
+		int lDrawableViewports = 0;
+		int lDeadViewports = 0;
 		{
 			tViewportListIt countIt = mlstViewports.begin();
 			for(; countIt != mlstViewports.end(); ++countIt)
 			{
-				if((*countIt)->IsVisible()==false) continue;
+				cViewport *pCountVp = *countIt;
+				if(pCountVp->IsVisible()==false) continue;
 
 				++lVisibleViewports;
-				pOnlyVisibleViewport = *countIt;	//meaningful only when the count is 1
+				pOnlyVisibleViewport = pCountVp;	//meaningful only when the count is 1
+
+				if(pCountVp->GetRenderer())
+				{
+					cCamera *pCountCam = pCountVp->GetCamera();
+					if(pCountVp->GetWorld() && pCountCam && pCountCam->GetFrustum())
+						++lDrawableViewports;
+					else
+						++lDeadViewports;
+				}
 			}
 			::ImGuiDebugMenu::SetDiagViewportCounts(lVisibleViewports, (int)mlstViewports.size());
 			::ImGuiDebugMenu::LatchDiagFrameCounters();
@@ -243,6 +268,7 @@ namespace hpl {
 		{
 			const cVector2l vPos = pOnlyVisibleViewport->GetPosition();
 			const cVector2l vSize = pOnlyVisibleViewport->GetSize();
+
 			const cVector2l vScreen = mpGraphics->GetLowLevel()->GetScreenSizeInt();
 
 			//A negative size means "whatever the framebuffer is", i.e. all of it.
@@ -251,6 +277,20 @@ namespace hpl {
 
 			if(vPos == cVector2l(0,0) && bCovers) bClearBackBuffer = false;
 		}
+
+		///////////////////////////////////////////
+		// There WAS a rule here that held the clear back whenever a visible
+		// viewport had no world to draw, on the theory that it was mid-transition
+		// and its rect would otherwise flash black. It is gone, and it was wrong.
+		//
+		// cScene::CreateViewport hands every viewport the main renderer and a NULL
+		// world, so a GUI-only viewport -- the journal's, the inventory's, the load
+		// screen's -- looks exactly like a viewport that failed to draw. They are
+		// worldless on purpose and permanently, so the rule fired for the whole
+		// time any menu was open and suppressed the clear four frames in five.
+		// Nothing distinguishes "has no world yet" from "has no world ever" at this
+		// level, which means the test cannot be written here at all.
+		mlHeldBlackFrames = 0;
 
 		mpGraphics->GetLowLevel()->SetCurrentFrameBuffer(NULL);
 
@@ -291,11 +331,13 @@ namespace hpl {
 		// frame -- not the ones that are merely visible. A frame where that ends up at
 		// zero is the one that flashes black; see the note after the loop.
 		int lWorldRenders = 0;
+		int lViewportIndex = -1;
 
 		tViewportListIt viewIt = mlstViewports.begin();
 		for(; viewIt != mlstViewports.end(); ++viewIt)
 		{
 			cViewport *pViewPort = *viewIt;
+			++lViewportIndex;
 			if(pViewPort->IsVisible()==false) continue;
 
 			//////////////////////////////////////////////
@@ -337,6 +379,26 @@ namespace hpl {
 				}
 				else
 				{
+					////////////////////////////////////////////////////////////
+					// THIS is a black half-screen, and it is where the flicker
+					// lives.
+					//
+					// The viewport is visible, so the frame was cleared to black
+					// for it, but one of renderer / world / camera came back NULL
+					// so no world is drawn into it -- and the GUI still is, which
+					// is why these frames show the HUD floating on nothing.
+					//
+					// Recorded rather than merely counted: which viewport, and
+					// which of the four went missing. They look identical on
+					// screen and have nothing else in common.
+					::ImGuiDebugMenu::ReportBlackViewportFrame(
+							lViewportIndex,
+							pRenderer != NULL,
+							pViewPort->GetWorld() != NULL,
+							pCamera != NULL,
+							pFrustum != NULL,
+							iRenderer::GetRenderFrameCount());
+
 					//If no renderer sets up viewport do that by our selves.
 					cRenderTarget* pRenderTarget = pViewPort->GetRenderTarget();
 					mpGraphics->GetLowLevel()->SetCurrentFrameBuffer(	pRenderTarget->mpFrameBuffer,

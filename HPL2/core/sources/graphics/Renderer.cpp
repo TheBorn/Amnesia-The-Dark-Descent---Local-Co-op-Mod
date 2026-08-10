@@ -1231,6 +1231,23 @@ namespace hpl {
 			}
 		}
 
+		////////////////////////////////////////////////////////////////////////
+		// AFTER the containers have been updated, and before a single node is
+		// looked up in the tracker.
+		//
+		// UpdateBeforeRendering is where the dynamic container rebuilds its tree
+		// and deletes every node it owned. This function runs once per VIEWPORT,
+		// so in co-op the second viewport arrives here holding a set full of
+		// pointers the first viewport's rebuild already freed -- and then asks
+		// WasNodeVisible about them. Freed addresses get recycled for new nodes,
+		// the answer comes back "yes" for something never seen, CHC skips the
+		// draw in favour of an occlusion query, and that viewport goes black
+		// until the sets refill on their own.
+		//
+		// The tracker only had a Reset reachable from cViewport::SetWorld, so
+		// once per map load, which is nowhere near often enough.
+		apVisibleNodeTracker->ValidateAgainstNodeDestruction();
+
 		// Temp variable used when pushing visibility
 		gpCurrentVisibleNodeTracker = apVisibleNodeTracker;
 

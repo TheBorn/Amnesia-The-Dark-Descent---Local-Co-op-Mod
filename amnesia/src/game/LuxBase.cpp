@@ -480,6 +480,103 @@ bool cLuxBase::Init(const tString &asCommandline)
        []() -> int { return gpBase->mpMapHandler->GetDualMonitorIndex(); },
         [](int alIdx) { gpBase->mpMapHandler->SetDualMonitorIndex(alIdx); }
     );
+	//////////////////////////////////////////////////////////////////////
+	// CO-OP STATE readout. Everything the menu paths actually branch on, printed
+	// as it is at that instant. Every one of these bugs has looked the same from
+	// outside -- "nothing happened" -- with a different cause each time.
+	ImGuiDebugMenu::SetCoopDiagCallback(
+		[]() -> std::string {
+			if(gpBase==NULL || gpBase->mpEngine==NULL) return std::string("(no game)");
+
+			char sBuf[1400];
+			char sLine[256];
+			sBuf[0] = 0;
+
+			const tString sContainer = gpBase->mpEngine->GetUpdater()->GetCurrentContainerName();
+
+			cLuxPlayer *pOwner = gpBase->mpInputHandler ?
+									gpBase->mpInputHandler->GetCoopMenuOwner() : NULL;
+			cLuxPlayer *pFree = gpBase->mpInputHandler ?
+									gpBase->mpInputHandler->GetCoopFreeRoamPlayer() : NULL;
+
+			snprintf(sLine, sizeof(sLine), "container=%s  coop=%d  split=%d\n",
+				sContainer.c_str(),
+				gpBase->mpMapHandler ? (int)gpBase->mpMapHandler->GetCoopMode() : -1,
+				gpBase->mpMapHandler ? gpBase->mpMapHandler->GetSplitScreenMode() : -1);
+			strncat(sBuf, sLine, sizeof(sBuf)-strlen(sBuf)-1);
+
+			snprintf(sLine, sizeof(sLine), "menuOwner=%s  free=%s  shared=%d\n",
+				pOwner==NULL ? "none" : (pOwner->IsPlayer2() ? "P2" : "P1"),
+				pFree==NULL ? "none" : (pFree->IsPlayer2() ? "P2" : "P1"),
+				gpBase->mpInputHandler ? (int)gpBase->mpInputHandler->CoopMenuIsShared() : -1);
+			strncat(sBuf, sLine, sizeof(sBuf)-strlen(sBuf)-1);
+
+			if(gpBase->mpJournal)
+			{
+				cViewport *pJvp = gpBase->mpJournal->GetViewport();
+				snprintf(sLine, sizeof(sLine),
+					"journal: player=%s showBoth=%d pauseBoth=%d\n"
+					"         vp pos=(%d,%d) size=(%d,%d) vis=%d act=%d\n",
+					gpBase->mpJournal->GetActivePlayer() &&
+						gpBase->mpJournal->GetActivePlayer()->IsPlayer2() ? "P2" : "P1",
+					(int)gpBase->mpJournal->GetShowOnBothPlayers(),
+					(int)gpBase->mpJournal->GetPauseBothPlayers(),
+					pJvp ? pJvp->GetPosition().x : -1, pJvp ? pJvp->GetPosition().y : -1,
+					pJvp ? pJvp->GetSize().x : -1,     pJvp ? pJvp->GetSize().y : -1,
+					pJvp ? (int)pJvp->IsVisible() : -1, pJvp ? (int)pJvp->IsActive() : -1);
+				strncat(sBuf, sLine, sizeof(sBuf)-strlen(sBuf)-1);
+			}
+
+			if(gpBase->mpInventory)
+			{
+				cViewport *pIvp = gpBase->mpInventory->GetViewport();
+				snprintf(sLine, sizeof(sLine),
+					"bag:     player=%d ctx=%d vp pos=(%d,%d) size=(%d,%d) vis=%d\n",
+					gpBase->mpInventory->GetActivePlayerIndex(),
+					(int)gpBase->mpInventory->HasPlayerContext(),
+					pIvp ? pIvp->GetPosition().x : -1, pIvp ? pIvp->GetPosition().y : -1,
+					pIvp ? pIvp->GetSize().x : -1,     pIvp ? pIvp->GetSize().y : -1,
+					pIvp ? (int)pIvp->IsVisible() : -1);
+				strncat(sBuf, sLine, sizeof(sBuf)-strlen(sBuf)-1);
+			}
+
+			if(gpBase->mpMapHandler)
+			{
+				cViewport *pV1 = gpBase->mpMapHandler->GetCoopP1Viewport();
+				cViewport *pV2 = gpBase->mpMapHandler->GetCoopViewport();
+				cViewport *pVM = gpBase->mpMapHandler->GetViewport();
+				snprintf(sLine, sizeof(sLine),
+					"vp main vis=%d pos=(%d,%d) size=(%d,%d)\n"
+					"vp P1   vis=%d pos=(%d,%d) size=(%d,%d)\n"
+					"vp P2   vis=%d pos=(%d,%d) size=(%d,%d)\n",
+					pVM ? (int)pVM->IsVisible() : -1,
+					pVM ? pVM->GetPosition().x : -1, pVM ? pVM->GetPosition().y : -1,
+					pVM ? pVM->GetSize().x : -1,     pVM ? pVM->GetSize().y : -1,
+					pV1 ? (int)pV1->IsVisible() : -1,
+					pV1 ? pV1->GetPosition().x : -1, pV1 ? pV1->GetPosition().y : -1,
+					pV1 ? pV1->GetSize().x : -1,     pV1 ? pV1->GetSize().y : -1,
+					pV2 ? (int)pV2->IsVisible() : -1,
+					pV2 ? pV2->GetPosition().x : -1, pV2 ? pV2->GetPosition().y : -1,
+					pV2 ? pV2->GetSize().x : -1,     pV2 ? pV2->GetSize().y : -1);
+				strncat(sBuf, sLine, sizeof(sBuf)-strlen(sBuf)-1);
+			}
+
+			if(gpBase->mpJournal)
+			{
+				snprintf(sLine, sizeof(sLine), "last %s\n",
+					gpBase->mpJournal->GetLastNoteDecision().c_str());
+				strncat(sBuf, sLine, sizeof(sBuf)-strlen(sBuf)-1);
+			}
+
+			snprintf(sLine, sizeof(sLine), "P2 kb=%p  mouse=%p  mouseKnown=%d\n",
+				ImGuiDebugMenu::GetP2RawDevice(), ImGuiDebugMenu::GetP2RawMouse(),
+				gpBase->mpInputHandler ? (int)gpBase->mpInputHandler->P2RawMouseKnown() : -1);
+			strncat(sBuf, sLine, sizeof(sBuf)-strlen(sBuf)-1);
+
+			return std::string(sBuf);
+		}
+	);
+
 	// Forced Coop state for the debug menu and its compat-option gating:
 	// 0 = co-op off, 1 = forced coop (running story never declared support),
 	// 2 = native co-op story (declared SupportsCoop in custom_story_settings.cfg).

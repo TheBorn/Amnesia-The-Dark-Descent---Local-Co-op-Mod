@@ -46,8 +46,15 @@ namespace hpl {
 		bool KeyIsReleased();
 		cKeyPress GetReleasedKey();
 
+		/**
+		 * SDL keysym to eKey. Public and static because it is a pure translation
+		 * table with nothing of this keyboard in it, and cLowLevelInputSDL needs
+		 * the same answer to work out which physical keyboard an SDL event came
+		 * from -- see EventIsFromPlayer2Keyboard.
+		 */
+		static eKey SDLToKey(int alKey);
+
 	private:
-		eKey SDLToKey(int alKey);
         void ClearKeyList();
 		eKey AsciiToKey(int alChar);
 

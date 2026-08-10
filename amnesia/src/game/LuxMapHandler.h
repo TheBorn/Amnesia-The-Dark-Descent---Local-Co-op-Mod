@@ -254,6 +254,16 @@ public:
 	};
 	eBackgroundCaptureMode GetBackgroundCaptureMode();
 
+	/**
+	 * Put the co-op viewports where the given container needs them.
+	 *
+	 * The single author of that layout. OnLeaveContainer calls it on the way
+	 * into a menu, and cLuxHelpFuncs::RenderBackgroundImage calls it again after
+	 * the background capture, which mutates the same visibility flags for its own
+	 * reasons and used to leave them wrong -- see the note at that call.
+	 */
+	void ApplyContainerViewportLayout(const tString& asNewContainer);
+
 	void PrepareBackgroundCapture();
 	void RestoreBackgroundCapture();
 
@@ -303,6 +313,15 @@ private:
 
 	void CheckMapChange(float afTimeStep);
 
+	/**
+	 * Re-apply both co-op viewport rects from the window as it stands NOW.
+	 *
+	 * Needed because the dual-monitor window move is deferred by one Update, so
+	 * everything that lays the viewports out does so before the window has gone
+	 * anywhere. See the note at the call site.
+	 */
+	void RefreshCoopViewportRects();
+
 	void GetSplitViewportRects(int aiScreenW, int aiScreenH,
 		cVector2l &avP1Pos, cVector2l &avP1Size,
 		cVector2l &avP2Pos, cVector2l &avP2Size);
@@ -323,6 +342,17 @@ private:
 	 * it once per frame collapses that pair to nothing at all.
 	 */
 	void ApplyDualMonitorWindow(bool abEnable);
+public:
+	/**
+	 * Is the window ACTUALLY spanning two displays right now? Not the wish --
+	 * see ApplyDualMonitorWindow, which only records one.
+	 *
+	 * Public because the options screen asks it: vsync is forced off for as long
+	 * as this is true, so that is the one moment the checkbox must not be obeyed.
+	 */
+	bool GetDualMonitorWindowActive(){ return mbDualMonitorWindowActive; }
+
+private:
 
 	/** Settle the window against what was asked for. Once per frame, no more. */
 	void UpdateDualMonitorWindow();
@@ -418,6 +448,31 @@ private:
 	bool mbUpdateActive;
 
 	bool mbShowCommentary;
+
+	/**
+	 * Co-op gets its OWN bloom, radial blur and sepia -- one set per player.
+	 *
+	 * They used to be the single instances below, added to all three composites.
+	 * That is safe when only one composite renders per frame, which is every case
+	 * except this one: in co-op two composites render back to back, so the same
+	 * effect object is driven twice through two different chains inside one frame,
+	 * reusing the internal buffers and per-pass state it set up for the first.
+	 * What came out the far side was a real, correctly rendered frame sampled with
+	 * a collapsed vertical range -- one scanline of the scene stretched down the
+	 * whole screen, in whatever colour that row happened to be. Turning post
+	 * effects off made it stop, which is what pinned it here.
+	 *
+	 * Insanity was already split for the same class of reason. This is the rest of
+	 * it. State and parameters are mirrored from the shared instances every frame
+	 * by MirrorCoopPostEffectState, so scripts and options still drive both halves
+	 * at once and nothing downstream has to know there are copies.
+	 *
+	 * [0] is Player 1, [1] is Player 2.
+	 */
+	iPostEffect *mpCoopBloom[2];
+	iPostEffect *mpCoopRadialBlur[2];
+	iPostEffect *mpCoopSepia[2];
+	void MirrorCoopPostEffectState();
 
 	iPostEffect *mpPostEffect_Bloom;
 	iPostEffect *mpPostEffect_ImageTrail;

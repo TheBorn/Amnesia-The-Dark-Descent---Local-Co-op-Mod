@@ -331,6 +331,13 @@ cLuxMapHandler::cLuxMapHandler() : iLuxUpdateable("LuxMapHandler")
 	mpDataCache =NULL;
 
 	// Co-op init
+	for(int i=0; i<2; ++i)
+	{
+		mpCoopBloom[i] = NULL;
+		mpCoopRadialBlur[i] = NULL;
+		mpCoopSepia[i] = NULL;
+	}
+
 	mpCoopPostEffectComp_P1 = NULL;
 	mpCoopPostEffectComp_P2 = NULL;
 	mpCoopInsanity_P1 = NULL;
@@ -529,10 +536,19 @@ void cLuxMapHandler::SetCoopMode(bool abX)
 		// handover at the end of this block.
 
 		// Create dedicated P1 viewport — same creation path as P2
+		//FRONT of the viewport list, not the back.
+		//
+		//cScene::Render walks mlstViewports in order, and the co-op viewports are
+		//created at MAP LOAD while every menu viewport -- journal, inventory, main
+		//menu, load screen -- is created at startup and so sits earlier. Pushed to
+		//the back, a live world half draws straight over the menu that was meant to
+		//replace it, and the only thing standing between that and a broken menu is
+		//somebody remembering to hide the right viewport at the right moment.
+		//Pushed to the front, the world is underneath everything by construction.
 		mpCoopP1Viewport = gpBase->mpEngine->GetScene()->CreateViewport(
 			gpBase->mpPlayer->GetCamera(),
 			mpCurrentMap->GetWorld(),
-			false
+			true
 		);
 		mpCoopP1Viewport->SetPosition(vP1Pos);
 		mpCoopP1Viewport->SetSize(vP1Size);
@@ -561,10 +577,11 @@ void cLuxMapHandler::SetCoopMode(bool abX)
 		if (pP2)
 		{
 			// P2 viewport — identical creation path
+			//Front, same as P1's -- see the note there.
 			mpCoopViewport = gpBase->mpEngine->GetScene()->CreateViewport(
 				pP2->GetCamera(),
 				mpCurrentMap->GetWorld(),
-				false
+				true
 			);
 			mpCoopViewport->SetPosition(vP2Pos);
 			mpCoopViewport->SetSize(vP2Size);
@@ -712,31 +729,50 @@ void cLuxMapHandler::GetSplitViewportRects(int aiScreenW, int aiScreenH,
 	}
 	case eSplitScreenMode_DualMonitor:
 	{
-		// P1 gets full main screen
+		SDL_Window* pWin = SDL_GL_GetCurrentWindow();
+
+		////////////////////////////////////////////////////////////////////////
+		// P1 gets the front of the window, P2 the second monitor.
+		//
+		// P1 is left at the origin ON PURPOSE, and it is not a simplification.
+		// iLowLevelGraphics::mvScreenSize is set once in Init and never updated --
+		// there is no resize handler anywhere in LowLevelGraphicsSDL -- so the
+		// whole renderer still believes the framebuffer is the size the window was
+		// CREATED at, however wide the spanning window actually is. Everything
+		// downstream reads that: the back-buffer clear coverage test in
+		// cScene::Render, the scissor rect, the post-effect composites. A viewport
+		// placed past it renders black with the smearing of a buffer sampled
+		// outside itself.
+		//
+		// Which is why moving P1 out to the second half broke it, and why the
+		// second monitor being on the RIGHT is currently the only arrangement that
+		// works: it is the one where P1 stays at 0,0.
 		avP1Pos  = cVector2l(0, 0);
 		avP1Size = cVector2l(aiScreenW, aiScreenH);
 
-		// P2 positioned on the second monitor
-		// Get the second monitor's bounds relative to the primary
-		if (mlDualMonitorIndex >= 0 && mlDualMonitorIndex < SDL_GetNumVideoDisplays())
+		bool bPlaced = false;
+
+		if (pWin && mlDualMonitorIndex >= 0 && mlDualMonitorIndex < SDL_GetNumVideoDisplays())
 		{
-			SDL_Rect displayBounds;
-			SDL_GetDisplayBounds(mlDualMonitorIndex, &displayBounds);
+			SDL_Rect p2Bounds;
+			SDL_GetDisplayBounds(mlDualMonitorIndex, &p2Bounds);
 
-			// Get primary monitor bounds
-			SDL_Window* pWin = SDL_GL_GetCurrentWindow();
-			int iMainDisplay = pWin ? SDL_GetWindowDisplayIndex(pWin) : 0;
-			SDL_Rect mainBounds;
-			SDL_GetDisplayBounds(iMainDisplay, &mainBounds);
+			////////////////////////////////////////////////////////////////
+			// P2 against the WINDOW'S OWN origin, read off the window.
+			//
+			// This used to subtract the bounds of whatever display
+			// SDL_GetWindowDisplayIndex called the window's, which assumes the
+			// window starts at that display's top-left -- true only while the
+			// second monitor is to the right.
+			int iWinX = 0, iWinY = 0;
+			SDL_GetWindowPosition(pWin, &iWinX, &iWinY);
 
-			// P2 position is relative to the extended window's origin (which is mainBounds origin)
-			int iRelX = displayBounds.x - mainBounds.x;
-			int iRelY = displayBounds.y - mainBounds.y;
-
-			avP2Pos  = cVector2l(iRelX, iRelY);
-			avP2Size = cVector2l(displayBounds.w, displayBounds.h);
+			avP2Pos  = cVector2l(p2Bounds.x - iWinX, p2Bounds.y - iWinY);
+			avP2Size = cVector2l(p2Bounds.w, p2Bounds.h);
+			bPlaced = true;
 		}
-		else
+
+		if(bPlaced==false)
 		{
 			// Fallback: right side split
 			int iOffsetY = (aiScreenH - iSplitH) / 2;
@@ -774,6 +810,55 @@ void cLuxMapHandler::UpdateDualMonitorWindow()
 	if (mbDualMonitorWanted == mbDualMonitorWindowActive) return;
 
 	ApplyDualMonitorWindowNow(mbDualMonitorWanted);
+
+	////////////////////////////////////////////////////////////////////////////
+	// ONLY if the apply actually took.
+	//
+	// ApplyDualMonitorWindowNow returns early, without setting
+	// mbDualMonitorWindowActive, whenever mlDualMonitorIndex is out of range --
+	// no monitor picked yet, or a display unplugged. The wanted flag then never
+	// matches the active one, so the guard above stops guarding and this function
+	// runs EVERY FRAME, forever.
+	//
+	// That was harmless while the early return was all that happened. It stops
+	// being harmless the moment a viewport resize is attached to it: SetPosition
+	// and SetSize on a viewport every single frame rebuilds its render targets
+	// and post-effect composites every single frame, which is a black frame
+	// whenever the rebuild lands mid-draw. Flicker, caused by the fix.
+	if (mbDualMonitorWanted != mbDualMonitorWindowActive) return;
+
+	////////////////////////////////////////////////////////////////////////////
+	// THE viewport rects have to be worked out again now, because every caller
+	// of GetSplitViewportRects computes them BEFORE this point.
+	//
+	// ApplyDualMonitorWindow only records a wish; the window is not actually
+	// moved until this function runs, one Update later. So the rects were always
+	// built against where the window USED to be.
+	//
+	// With the second monitor on the right that is invisible: the window origin
+	// does not move, only its width grows, so the old answer happens to still be
+	// the right one. Put the second monitor on the LEFT and the window origin
+	// jumps to -1920, every rect built against the old origin of 0 is a whole
+	// screen out, and Player 2's viewport lands at negative x -- off the window,
+	// drawing nothing. That is the "left monitor does not work" in one line.
+	RefreshCoopViewportRects();
+}
+
+//-----------------------------------------------------------------------
+
+void cLuxMapHandler::RefreshCoopViewportRects()
+{
+	if (mpCoopP1Viewport == NULL || mpCoopViewport == NULL) return;
+
+	cVector2f vScreen = gpBase->mpEngine->GetGraphics()->GetLowLevel()->GetScreenSizeFloat();
+
+	cVector2l vP1Pos, vP1Size, vP2Pos, vP2Size;
+	GetSplitViewportRects((int)vScreen.x, (int)vScreen.y, vP1Pos, vP1Size, vP2Pos, vP2Size);
+
+	mpCoopP1Viewport->SetPosition(vP1Pos);
+	mpCoopP1Viewport->SetSize(vP1Size);
+	mpCoopViewport->SetPosition(vP2Pos);
+	mpCoopViewport->SetSize(vP2Size);
 }
 
 //-----------------------------------------------------------------------
@@ -825,7 +910,40 @@ void cLuxMapHandler::ApplyDualMonitorWindowNow(bool abEnable)
 		if (mlSavedWindowW != iTotalW || mlSavedWindowH != iTotalH)
 			SDL_SetWindowSize(pWin, iTotalW, iTotalH);
 
+		////////////////////////////////////////////////////////////////////////
+		// Nothing to announce here on purpose.
+		//
+		// An earlier attempt pushed the new window size into
+		// iLowLevelGraphics::mvScreenSize from this point. Do not do that. The
+		// GUI's virtual size, the camera aspect, every internal render buffer and
+		// GetSplitViewportRects itself are all derived from that one value, so
+		// widening it to a two-monitor window lays the HUD and the menus out for a
+		// screen twice as wide as the one they are drawn on -- stretched menu text
+		// running off the side of a player's monitor.
+		//
+		// It also fixed nothing, because the premise was wrong: glClear is bounded
+		// by the SCISSOR box and never by glViewport, and cScene::Render forces the
+		// scissor off immediately before its clear. The whole back buffer was
+		// always being cleared.
 		mbDualMonitorWindowActive = true;
+
+		////////////////////////////////////////////////////////////////////////
+		// VSYNC OFF, and not as a preference.
+		//
+		// One window is now spanning two displays, and there is one swap for the
+		// pair of them. Vsync can only lock that swap to ONE refresh clock, so
+		// the other monitor is presented against a clock it does not share -- and
+		// on two panels that are not genlocked, which is every consumer pair,
+		// those clocks drift past each other. Every time they cross, a frame is
+		// held or doubled on the half that lost, which is a visible hitch on one
+		// player's screen and not the other's. It gets worse the further apart
+		// the two refresh rates are and does not settle, because nothing is
+		// pulling them back into step.
+		//
+		// The config is NOT written. This is the mode overriding the setting for
+		// as long as it lasts; the player's choice is untouched and goes back on
+		// below the moment the window is one monitor again.
+		gpBase->mpEngine->GetGraphics()->GetLowLevel()->SetVsyncActive(false, false);
 	}
 	else if (!abEnable && mbDualMonitorWindowActive)
 	{
@@ -841,6 +959,17 @@ void cLuxMapHandler::ApplyDualMonitorWindowNow(bool abEnable)
 			SDL_SetWindowFullscreen(pWin, SDL_WINDOW_FULLSCREEN_DESKTOP);
 
 		mbDualMonitorWindowActive = false;
+
+		//One window, one monitor, one refresh clock again -- so the player's own
+		//setting means something again. Read back from the config rather than
+		//remembered here, so a change made in Options while dual monitor was up is
+		//the one that takes effect.
+		if(gpBase->mpConfigHandler)
+		{
+			gpBase->mpEngine->GetGraphics()->GetLowLevel()->SetVsyncActive(
+						gpBase->mpConfigHandler->mbVSync,
+						gpBase->mpConfigHandler->mbAdaptiveVSync);
+		}
 	}
 }
 
@@ -1261,15 +1390,53 @@ void cLuxMapHandler::SetupCoopViewportPostEffects(cViewport *apViewport, bool ab
 	{
 		pComp = pGraphics->CreatePostEffectComposite();
 
-		// Shared instances with the main composite, so GetPostEffect_Sepia() /
-		// _RadialBlur() drive both halves at once and they stay in lockstep. Bloom
-		// is included too -- it is always active, so it also means the post pass
-		// runs every frame, which is exactly the single-monitor case now known to
-		// render correctly. Image trail stays out: it accumulates across frames and
-		// one shared instance would smear the two halves together.
-		if(mpPostEffect_Bloom)			pComp->AddPostEffect(mpPostEffect_Bloom, 100);
-		if(mpPostEffect_RadialBlur)		pComp->AddPostEffect(mpPostEffect_RadialBlur, 9);
-		if(mpPostEffect_Sepia)			pComp->AddPostEffect(mpPostEffect_Sepia, 4);
+		////////////////////////////////////////////////////////////////////
+		// OWN instances, not the shared ones.
+		//
+		// These used to be the main composite's objects, added here as well. One
+		// composite per frame makes that harmless; co-op renders TWO, back to
+		// back, so the same effect was driven twice through two different chains
+		// within a single frame -- reusing the internal buffers and per-pass
+		// state it had set up for the first half.
+		//
+		// The result was not a missing frame, it was a real one sampled wrongly:
+		// with rect textures and clamp-to-edge, a vertical range that falls
+		// outside the source gives you the edge row repeated for every row below
+		// it. One scanline of the scene stretched down the whole screen, in
+		// whatever colour that row was -- dark in a dark room, red under the
+		// death filter. Player 2 got it because Player 2 renders second.
+		//
+		// Image trail is still left out entirely: it accumulates across frames,
+		// so it needs per-player instances AND per-player history, and it is off
+		// by default. Not worth carrying until somebody wants it.
+		const int lSlot = abPlayer2 ? 1 : 0;
+
+		if(mpCoopBloom[lSlot] == NULL)
+		{
+			cPostEffectParams_Bloom bloomParams;
+			bloomParams.mfBlurSize = 1.0f;
+			bloomParams.mvRgbToIntensity = bloomParams.mvRgbToIntensity * 1.0f;
+			mpCoopBloom[lSlot] = pGraphics->CreatePostEffect(&bloomParams);
+		}
+		if(mpCoopRadialBlur[lSlot] == NULL)
+		{
+			cPostEffectParams_RadialBlur radialBlurParams;
+			radialBlurParams.mfSize = 0.0f;
+			mpCoopRadialBlur[lSlot] = pGraphics->CreatePostEffect(&radialBlurParams);
+			mpCoopRadialBlur[lSlot]->SetActive(false);
+		}
+		if(mpCoopSepia[lSlot] == NULL)
+		{
+			cPostEffectParams_ColorConvTex sepiaParams;
+			sepiaParams.msTextureFile = "colorconv_sepia.tga";
+			sepiaParams.mfFadeAlpha = 0.0f;
+			mpCoopSepia[lSlot] = pGraphics->CreatePostEffect(&sepiaParams);
+			mpCoopSepia[lSlot]->SetActive(false);
+		}
+
+		if(mpCoopBloom[lSlot])		pComp->AddPostEffect(mpCoopBloom[lSlot], 100);
+		if(mpCoopRadialBlur[lSlot])	pComp->AddPostEffect(mpCoopRadialBlur[lSlot], 9);
+		if(mpCoopSepia[lSlot])		pComp->AddPostEffect(mpCoopSepia[lSlot], 4);
 
 		////////////////////////////////////////////////////////////////////
 		// Per-player insanity distortion. The shared instance sits on the MAIN
@@ -1628,8 +1795,89 @@ void cLuxMapHandler::UpdatePlayer2(float afTimeStep)
 
 //-----------------------------------------------------------------------
 
+void cLuxMapHandler::MirrorCoopPostEffectState()
+{
+	if(mbCoopActive==false) return;
+
+	//////////////////////////////////////////////////////////////////////
+	// Keep the per-player copies in step with the shared originals.
+	//
+	// Everything outside this file still talks to GetPostEffect_Sepia() and
+	// GetPostEffect_RadialBlur() -- scripts, the effect handler, the options
+	// screen -- and none of it should have to know co-op made copies. So the
+	// copies follow, every frame.
+	//
+	// Enabled and active always; PARAMETERS only while the effect is actually
+	// doing something. SetParams runs OnSetParams, which for the sepia effect
+	// resolves a texture by name, and there is no reason to pay for that on
+	// every frame of a game where sepia is switched off almost all of the time.
+	// Bloom is the exception that proves it: always active, and its parameters
+	// never change after construction.
+	for(int i=0; i<2; ++i)
+	{
+		if(mpCoopBloom[i] && mpPostEffect_Bloom)
+		{
+			mpCoopBloom[i]->SetDisabled(mpPostEffect_Bloom->IsDisabled());
+			mpCoopBloom[i]->SetActive(mpPostEffect_Bloom->IsActive());
+		}
+
+		if(mpCoopRadialBlur[i] && mpPostEffect_RadialBlur)
+		{
+			//////////////////////////////////////////////////////////////
+			// A radial blur can belong to ONE player.
+			//
+			// An emotion-stone vision blurs and zooms the player who touched the
+			// stone. The zoom was already theirs alone -- FadeFOVMulTo is called on
+			// that player -- but the blur is one shared post effect, and mirroring
+			// it here put it on both halves. Player 1 got tunnel vision from a
+			// vision they were not in, could not see, and had not triggered.
+			//
+			// NULL owner means what it always meant: a script's blur, or damage,
+			// or anything else with no single player behind it -- both halves.
+			cLuxPlayer *pBlurOwner = gpBase->mpEffectHandler ?
+									gpBase->mpEffectHandler->GetRadialBlurOwner() : NULL;
+
+			bool bMine = true;
+			if(pBlurOwner)
+			{
+				const bool bOwnerIsP2 = pBlurOwner->IsPlayer2();
+				bMine = (i == 1) ? bOwnerIsP2 : (bOwnerIsP2 == false);
+			}
+
+			mpCoopRadialBlur[i]->SetDisabled(mpPostEffect_RadialBlur->IsDisabled());
+			mpCoopRadialBlur[i]->SetActive(bMine && mpPostEffect_RadialBlur->IsActive());
+
+			if(bMine && mpPostEffect_RadialBlur->IsActive())
+			{
+				cPostEffectParams_RadialBlur params;
+				mpPostEffect_RadialBlur->GetParams(&params);
+				mpCoopRadialBlur[i]->SetParams(&params);
+			}
+		}
+
+		if(mpCoopSepia[i] && mpPostEffect_Sepia)
+		{
+			mpCoopSepia[i]->SetDisabled(mpPostEffect_Sepia->IsDisabled());
+			mpCoopSepia[i]->SetActive(mpPostEffect_Sepia->IsActive());
+
+			if(mpPostEffect_Sepia->IsActive())
+			{
+				cPostEffectParams_ColorConvTex params;
+				mpPostEffect_Sepia->GetParams(&params);
+				mpCoopSepia[i]->SetParams(&params);
+			}
+		}
+	}
+}
+
+//-----------------------------------------------------------------------
+
 void cLuxMapHandler::Update(float afTimeStep)
 {
+	//Before anything renders this frame: the copies have to be carrying the same
+	//values the originals are, or one half fades to sepia and the other does not.
+	MirrorCoopPostEffectState();
+
 	//Settle the spanning window here, and only here. Everything else records a wish.
 	UpdateDualMonitorWindow();
 
@@ -1951,6 +2199,13 @@ void cLuxMapHandler::OnEnterContainer(const tString& asOldContainer)
 
 void cLuxMapHandler::OnLeaveContainer(const tString& asNewContainer)
 {
+	ApplyContainerViewportLayout(asNewContainer);
+}
+
+//-----------------------------------------------------------------------
+
+void cLuxMapHandler::ApplyContainerViewportLayout(const tString& asNewContainer)
+{
 	//////////////////////////////////////////////////////////////
 	// The load screen owns the whole frame, for BOTH players.
 	//
@@ -1980,6 +2235,37 @@ void cLuxMapHandler::OnLeaveContainer(const tString& asNewContainer)
 		// Same as what single player already got from the generic branch below.
 		mpViewport->SetActive(false);
 		mpViewport->SetVisible(false);
+
+		if (mpCurrentMap) mpCurrentMap->GetWorld()->SetActive(false);
+		return;
+	}
+
+	//////////////////////////////////////////////////////////////////////
+	// A note the pair is reading TOGETHER is a full stop, not a menu.
+	//
+	// Everything below this exists so one player can open a bag while the other
+	// carries on. That is the wrong shape for a note found in the world under
+	// forced co-op: nobody should be fighting a Grunt while their partner reads,
+	// and the note is on both screens anyway. So this one takes the original
+	// single-player path -- world off, both halves put away, one full-screen
+	// viewport -- which is also what puts the note where both of them can see it.
+	if (mbCoopActive && gpBase->mpJournal->GetPauseBothPlayers() && asNewContainer == "Journal")
+	{
+		if (mpCoopP1Viewport)
+		{
+			mpCoopP1Viewport->SetActive(false);
+			mpCoopP1Viewport->SetVisible(false);
+		}
+		if (mpCoopViewport)
+		{
+			mpCoopViewport->SetActive(false);
+			mpCoopViewport->SetVisible(false);
+		}
+
+		mpViewport->SetPosition(cVector2l(0, 0));
+		mpViewport->SetSize(cVector2l(-1, -1));
+		mpViewport->SetActive(true);
+		mpViewport->SetVisible(true);
 
 		if (mpCurrentMap) mpCurrentMap->GetWorld()->SetActive(false);
 		return;
@@ -2062,6 +2348,8 @@ void cLuxMapHandler::OnLeaveContainer(const tString& asNewContainer)
 	// update order -- the world itself was switched off.
 	//
 	// This listed "Inventory" alone, from before the journal was per-player.
+	// A shared note has already returned above with the world switched off, so
+	// nothing here has to know about it.
 	bool bKeepWorldActive = false;
 	if (mbCoopActive && (asNewContainer == "Inventory" || asNewContainer == "Journal"))
 		bKeepWorldActive = true;
@@ -2215,7 +2503,7 @@ void cLuxMapHandler::SetCurrentMap(cLuxMap* apMap, bool abRunScript, bool abFirs
 				mpCoopP1Viewport = gpBase->mpEngine->GetScene()->CreateViewport(
 					gpBase->mpPlayer->GetCamera(),
 					mpCurrentMap->GetWorld(),
-					false
+					true
 				);
 				mpCoopP1Viewport->SetPosition(vP1Pos);
 				mpCoopP1Viewport->SetSize(vP1Size);
@@ -2273,7 +2561,7 @@ void cLuxMapHandler::SetCurrentMap(cLuxMap* apMap, bool abRunScript, bool abFirs
 					mpCoopViewport = gpBase->mpEngine->GetScene()->CreateViewport(
 						pP2->GetCamera(),
 						mpCurrentMap->GetWorld(),
-						false
+						true
 					);
 					mpCoopViewport->SetPosition(vP2Pos);
 					mpCoopViewport->SetSize(vP2Size);

@@ -47,11 +47,40 @@ namespace hpl {
 
 		void Reset();
 
+		/**
+		 * Throw the remembered nodes away if any have been destroyed since this
+		 * tracker last looked. Call at the start of a cull pass.
+		 *
+		 * The sets below hold RAW POINTERS to container nodes, and the dynamic
+		 * container deletes every node it owns whenever it rebuilds its tree --
+		 * which it does on a counter, after so many objects have been added or
+		 * removed, so in practice at unpredictable moments during play. Nothing
+		 * told the trackers, and the only Reset() there was reached solely from
+		 * cViewport::SetWorld, i.e. once per map load.
+		 *
+		 * So WasNodeVisible was being asked about freed pointers. Sometimes that
+		 * merely answers "no". Sometimes the allocator has handed the same address
+		 * back out for a NEW node, and it answers "yes" for something never
+		 * actually seen -- CHC then trusts last frame's visibility, skips the
+		 * draw, and issues an occlusion query instead. Geometry vanishes for a
+		 * frame or several and comes back on its own once the sets refill.
+		 *
+		 * Single player mostly gets away with it: one viewport, and the rebuild
+		 * happens inside its own cull pass, so its sets are refilled immediately.
+		 * Co-op does not. There are two viewports, each with its own tracker, and
+		 * UpdateBeforeRendering runs at the top of EACH cull pass -- so the
+		 * viewport that culls second meets a tree that the first one just rebuilt,
+		 * holding a whole set of pointers into freed memory. That is one viewport
+		 * going black at random intervals while the other is fine.
+		 */
+		void ValidateAgainstNodeDestruction();
+
 	private:
 		tRenderableContainerNodeSet m_setVisibleNodes[2];
 		int mlCurrentVisibleNodeSet;
 		int mlFrameCounter;
 
+		int mlNodeDestroyCountAtLastUse;
 	};
 
 	//-------------------------------------------
@@ -72,7 +101,15 @@ namespace hpl {
 	friend class iRenderableContainer;
 	public:
 		iRenderableContainerNode();
-		virtual ~iRenderableContainerNode(){}
+
+		//Counted rather than announced. Nodes are destroyed from several places --
+		//a full tree rebuild, a split collapsing, the destructor chain -- and every
+		//one of them leaves any cVisibleRCNodeTracker holding that pointer stale.
+		//Counting in the one place they all pass through means no path can be
+		//missed, and a tracker only has to compare one integer to know.
+		virtual ~iRenderableContainerNode(){ ++mlNodeDestroyCount; }
+
+		static int GetNodeDestroyCount(){ return mlNodeDestroyCount; }
 
 		virtual void UpdateBeforeUse(){}
 
@@ -140,6 +177,8 @@ namespace hpl {
 		iRenderableContainerNode *mpParent;
 		tRenderableContainerNodeList mlstChildNodes;
 		tRenderableList mlstObjects;
+
+		static int mlNodeDestroyCount;
 	};
 
 	//-------------------------------------------

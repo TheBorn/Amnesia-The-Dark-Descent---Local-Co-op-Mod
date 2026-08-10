@@ -24,6 +24,7 @@
 #include "LuxHelpFuncs.h"
 #include "LuxInventory.h"
 #include "LuxItemType.h"
+#include "LuxJournal.h"
 #include "LuxMessageHandler.h"
 #include "LuxEffectRenderer.h"
 
@@ -105,6 +106,10 @@ void cLuxPropLoader_Item::LoadInstanceVariables(iLuxProp *apProp, cResourceVarsO
 		pItem->msVal = apInstanceVars->GetVarString("NoteText", "");
 		pItem->mfAmount = apInstanceVars->GetVarBool("OpenNoteInJournal", true) ? 1.0f : -1.0f;
 		pItem->mfAmount *= apInstanceVars->GetVarBool("UseNarration", false) ? 2.0f : 1.0f;
+
+		//Co-op. Off by default: in a story that declares support the author decides,
+		//and the default there is one reader. Forced co-op never consults it.
+		pItem->mbReadByBoth = apInstanceVars->GetVarBool("ReadByBoth", false);
 	}
 	///////////////////////////
 	// Diary
@@ -112,6 +117,7 @@ void cLuxPropLoader_Item::LoadInstanceVariables(iLuxProp *apProp, cResourceVarsO
 	{
 		pItem->msVal = apInstanceVars->GetVarString("DiaryText", "");
 		pItem->msExtraVal = apInstanceVars->GetVarString("DiaryCallback", "");
+		pItem->mbReadByBoth = apInstanceVars->GetVarBool("ReadByBoth", false);
 	}
 }
 //-----------------------------------------------------------------------
@@ -126,6 +132,7 @@ cLuxProp_Item::cLuxProp_Item(const tString &asName,int alID, cLuxMap *apMap) : i
 {
 	mfAmount = 1.0f;
 	mlSpawnContainerID =-1;
+	mbReadByBoth = false;
 	mfFlashAlpha =0;
 }
 
@@ -155,7 +162,17 @@ bool cLuxProp_Item::OnInteract(iPhysicsBody *apBody, const cVector3f &avPos)
 	//Picked up item
 	bool bRemoveProp=true;	
 
+	//Hand the note's own ReadByBoth over before the item is built. The type
+	//handler that opens the journal runs inside AddItem and has no way back to
+	//this prop; see cLuxJournal::SetNextNoteReadByBoth. Set for every item type,
+	//not just notes -- the journal consumes it either way, and leaving it set on
+	//a lantern oil pickup would arm the next note in the level.
+	gpBase->mpJournal->SetNextNoteReadByBoth(mbReadByBoth);
+
 	gpBase->mpInventory->AddItem(msName, mItemType, msSubItemTypeName, msImageFile, mfAmount, msVal,msExtraVal ,&bRemoveProp);
+
+	//Whatever happened above, it is not the next note's business.
+	gpBase->mpJournal->SetNextNoteReadByBoth(false);
 
 	if(bRemoveProp)
 	{
@@ -167,7 +184,12 @@ bool cLuxProp_Item::OnInteract(iPhysicsBody *apBody, const cVector3f &avPos)
 		if(pType->ShowPickUpMessage())
 		{
 			tString sEntry = "ItemName_"+msSubItemTypeName;
-			gpBase->mpMessageHandler->SetMessage(kTranslate("Inventory", "PickedUp")+_W(" ")+kTranslate("Inventory",sEntry), 0);
+
+			//ForBoth: the inventory is shared, so an item leaving the world and
+			//arriving in the bag is a thing that happened to the PAIR. Player 2
+			//finding the key and Player 1 never being told is how you get two people
+			//searching the same room for it.
+			gpBase->mpMessageHandler->SetMessageForBoth(kTranslate("Inventory", "PickedUp")+_W(" ")+kTranslate("Inventory",sEntry), 0);
 		}
 
 		RunCallbackFunc("OnPickup");
@@ -276,6 +298,7 @@ kSerializeVar(msExtraVal, eSerializeType_String)
 kSerializeVar(mlSpawnContainerID, eSerializeType_Int32)
 kSerializeVar(mfAmount, eSerializeType_Float32)
 kSerializeVar(msSubItemTypeName, eSerializeType_String)
+kSerializeVar(mbReadByBoth, eSerializeType_Bool)
 kEndSerialize()
 
 //-----------------------------------------------------------------------
@@ -301,6 +324,7 @@ void cLuxProp_Item::SaveToSaveData(iLuxEntity_SaveData* apSaveData)
 	kCopyToVar(pData,mlSpawnContainerID);
 	kCopyToVar(pData,mfAmount);
 	kCopyToVar(pData,msSubItemTypeName);
+	kCopyToVar(pData,mbReadByBoth);
 }
 
 //-----------------------------------------------------------------------
@@ -319,6 +343,7 @@ void cLuxProp_Item::LoadFromSaveData(iLuxEntity_SaveData* apSaveData)
 	kCopyFromVar(pData,mlSpawnContainerID);
 	kCopyFromVar(pData,mfAmount);
 	kCopyFromVar(pData,msSubItemTypeName);
+	kCopyFromVar(pData,mbReadByBoth);
 }
 
 //-----------------------------------------------------------------------

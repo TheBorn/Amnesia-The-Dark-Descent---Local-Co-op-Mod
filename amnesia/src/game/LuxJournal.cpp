@@ -19,6 +19,8 @@
 
 #include "LuxJournal.h"
 
+#include "impl/ImGuiDebugMenu.h"
+
 #include "LuxMapHandler.h"
 #include "LuxInputHandler.h"
 #include "LuxHelpFuncs.h"
@@ -276,6 +278,9 @@ cLuxJournal::cLuxJournal() : iLuxUpdateable("LuxJournal")
 	//Setup GUI stuff
 	mpActivePlayer = NULL;
 	mbShowOnBothPlayers = false;
+	mbPauseBothPlayers = false;
+	mbNextNoteReadByBoth = false;
+	msLastNoteDecision = "(none yet)";
 
 	mpGuiSkin = mpGui->CreateSkin("gui_main_menu.skin");
 	mpGuiSet = mpGui->CreateSet("Inventory", mpGuiSkin);
@@ -563,8 +568,13 @@ void cLuxJournal::OnEnterContainer(const tString& asOldContainer)
 	//instead: P1 has a mouse, P2 has the pad. Single player is unchanged.
 	bool bPadUI = gpBase->mpInputHandler->IsGamepadPresent();
 	if(gpBase->mpMapHandler->GetCoopMode())
-		bPadUI = GetActivePlayer()->IsPlayer2();
+		bPadUI = GetActivePlayer()->IsPlayer2() && ::ImGuiDebugMenu::GetP2UsesRawInput()==false;
 
+	//P2 holding their OWN mouse is not a pad. GetP2UsesRawInput means P2 is on a
+	//second keyboard and mouse, so they want a cursor exactly like P1 does --
+	//without this their menu opened with the pointer hidden and mouse movement
+	//switched off, and with no pad to navigate with there was nothing left that
+	//could close it.
 	mpGuiSet->SetDrawMouse(bPadUI==false);
 	mpGuiSet->SetMouseMovementEnabled(bPadUI==false);
 #else
@@ -635,6 +645,7 @@ void cLuxJournal::OnLeaveContainer(const tString& asNewContainer)
 {
 	//One open, one meaning. Both are re-established by whoever opens next.
 	mbShowOnBothPlayers = false;
+	mbPauseBothPlayers = false;
 	mpActivePlayer = NULL;
 
 	///////////////////////////
@@ -705,6 +716,62 @@ void cLuxJournal::OnDraw(float afFrameTime)
 	////////////////////////
 	//Draw extra effects
 	gpBase->mpEffectHandler->GetSanityGainFlash()->DrawFlash(mpGuiSet, afFrameTime);
+
+	////////////////////////
+	// PLAYER 2'S POINTER, on a note the two of them are reading together.
+	//
+	// A cGuiSet draws exactly one cursor, from its own mouse position, and that
+	// position is Player 1's. Player 2's is kept alongside it by
+	// cLuxInputHandler and drawn here -- so the pair have a pointer each instead
+	// of one that changed hands to whoever moved last, which is what made
+	// Player 2 reaching for their mouse drag Player 1's off the page.
+	//
+	// Drawn into the shared set on purpose, not into a per-player one: this set
+	// is what both monitors show, so each of them can see where the other is
+	// pointing -- which is most of the value of two cursors on one page.
+	//
+	// Above the fade and the flash, below nothing: a pointer is the top thing on
+	// the screen, the same as the set's own.
+	if(gpBase->mpInputHandler && mpGuiSet && mpGuiSet->GetSkin())
+	{
+		cVector2f vP2Pointer;
+		if(gpBase->mpInputHandler->GetCoopSharedCursorP2Virtual(mpGuiSet, vP2Pointer))
+		{
+			cGuiGfxElement *pPointerGfx = mpGuiSet->GetSkin()->GetGfx(eGuiSkinGfx_PointerNormal);
+			if(pPointerGfx)
+			{
+				mpGuiSet->DrawGfx(	pPointerGfx,
+									cVector3f(vP2Pointer.x, vP2Pointer.y, mpGuiSet->GetMouseZ()),
+									pPointerGfx->GetImageSize(), cColor(1,1));
+			}
+		}
+	}
+}
+
+//-----------------------------------------------------------------------
+
+void cLuxJournal::CoopAdvanceNotePage()
+{
+	if(mbActive==false) return;
+
+	//Only a page has a next page. Anywhere else in the journal the honest answer
+	//to "advance" is to put it down.
+	if(	mCurrentState != eLuxJournalState_OpenNote &&
+		mCurrentState != eLuxJournalState_OpenDiary &&
+		mCurrentState != eLuxJournalState_OpenNarratedDiary)
+	{
+		ExitPressed(true);
+		return;
+	}
+
+	if(mlCurrentNotePage < (int)mvPages.size()-1)
+	{
+		SetNotePage(mlCurrentNotePage+1);
+		gpBase->mpHelpFuncs->PlayGuiSoundData("journal_page", eSoundEntryType_Gui);
+		return;
+	}
+
+	ExitPressed(true);
 }
 
 //-----------------------------------------------------------------------

@@ -120,6 +120,10 @@ namespace hpl {
 
 		cViewport *mpCurrentListener;
 
+		//How many consecutive frames the back-buffer clear has been held back for a
+		//visible viewport that could not draw. See cScene::Render.
+		int mlHeldBlackFrames;
+
 		//Black-frame suppression, see the note at the end of cScene::Render.
 
         tViewportList mlstViewports;

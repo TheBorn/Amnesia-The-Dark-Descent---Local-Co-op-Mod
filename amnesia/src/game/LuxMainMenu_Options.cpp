@@ -1809,7 +1809,19 @@ void cLuxMainMenu_Options::ApplyChanges()
 		pCfgHdr->mbFullscreen = mpChBFullScreen->IsChecked();
 		pCfgHdr->mbVSync = mpChBVSync->IsChecked();
 //		pCfgHdr->mbAdaptiveVSync = mpChBAdaptiveVSync->IsChecked();
-		pGfx->GetLowLevel()->SetVsyncActive(pCfgHdr->mbVSync, pCfgHdr->mbAdaptiveVSync);
+
+		////////////////////////////////////////////////////////////////////
+		// Recorded always, APPLIED only when the window is one monitor.
+		//
+		// Dual-monitor co-op forces vsync off -- one swap cannot be locked to two
+		// refresh clocks, see cLuxMapHandler::ApplyDualMonitorWindowNow. Without
+		// this the checkbox would quietly undo that mid-session and hand one of
+		// the players a hitching screen.
+		//
+		// The choice is still saved either way, and it is read back out of the
+		// config the moment the window goes back to one monitor.
+		if(gpBase->mpMapHandler==NULL || gpBase->mpMapHandler->GetDualMonitorWindowActive()==false)
+			pGfx->GetLowLevel()->SetVsyncActive(pCfgHdr->mbVSync, pCfgHdr->mbAdaptiveVSync);
 		pGfx->GetLowLevel()->SetGammaCorrection(GetGamma());
 
 		// Parallax

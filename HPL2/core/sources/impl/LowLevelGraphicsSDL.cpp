@@ -778,6 +778,8 @@ namespace hpl {
 		return cVector2f((float)mvScreenSize.x, (float)mvScreenSize.y);
 	}
 
+	//-----------------------------------------------------------------------
+
 	const cVector2l& cLowLevelGraphicsSDL::GetScreenSizeInt()
 	{
 		;

@@ -39,6 +39,22 @@ public:
 
 	virtual void DoAction(eLuxPlayerAction aAction, bool abPressed){}
 
+	/**
+	 * Coop: the same press, but with a name on it.
+	 *
+	 * Some effects belong to ONE player -- an emotion-stone vision freezes and
+	 * is drawn for whoever touched the stone, and nobody else can even see the
+	 * text. Those override this and ignore the other player, whose trigger
+	 * finger is busy playing the game.
+	 *
+	 * The default is the old behaviour, so an ownerless effect still answers to
+	 * either of them.
+	 */
+	virtual void DoActionForPlayer(cLuxPlayer *apPlayer, eLuxPlayerAction aAction, bool abPressed)
+	{
+		DoAction(aAction, abPressed);
+	}
+
 
 	bool IsActive(){ return mbActive;}
 	void SetActive(bool abX){ mbActive = abX;}
@@ -97,6 +113,7 @@ public:
 	void OnDraw(float afFrameTime);
 	
 	void DoAction(eLuxPlayerAction aAction, bool abPressed);
+	void DoActionForPlayer(cLuxPlayer *apPlayer, eLuxPlayerAction aAction, bool abPressed);
 
 private:
 	/**
@@ -484,6 +501,12 @@ public:
 	void OnDraw(float afFrameTime);
 
 	void DoAction(eLuxPlayerAction aAction, bool abPressed);
+
+	/**
+	 * Coop: press attributed to apPlayer. Effects that belong to one player
+	 * answer only to theirs; the rest behave exactly as they did.
+	 */
+	void DoActionForPlayer(cLuxPlayer *apPlayer, eLuxPlayerAction aAction, bool abPressed);
 	
 	///////////////////////////
 	// Properties
@@ -494,6 +517,20 @@ public:
 	 * one player starts and the other ends can never leave someone stuck.
 	 */
 	void SetPlayerIsPausedFor(cLuxPlayer *apPlayer, bool abX);
+
+	/**
+	 * Coop: which player the CURRENT radial blur belongs to, or NULL for
+	 * "everybody" (a script's blur, and single player, where there is only one
+	 * screen anyway).
+	 *
+	 * There is one cLuxEffect_RadialBlur driving one shared post effect, and
+	 * cLuxMapHandler mirrors that onto both halves. Fine for a blur the story
+	 * asked for; wrong for one that belongs to a single player, which is why
+	 * Player 1 was getting the tunnel-vision blur off an emotion-stone vision
+	 * Player 2 had walked into on the other side of the map.
+	 */
+	void SetRadialBlurOwner(cLuxPlayer *apPlayer){ mpRadialBlurOwner = apPlayer; }
+	cLuxPlayer* GetRadialBlurOwner(){ return mpRadialBlurOwner; }
 
 	///////////////////////////
 	// Effects
@@ -523,6 +560,7 @@ private:
 	std::vector<iLuxEffect*> mvEffects;	
 
 	bool mbPlayerIsPaused;
+	cLuxPlayer *mpRadialBlurOwner;
 };
 
 //----------------------------------------------

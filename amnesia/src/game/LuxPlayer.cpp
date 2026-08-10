@@ -24,7 +24,9 @@
 #include "LuxJournal.h"
 #include "LuxMessageHandler.h"
 #include "LuxMapHandler.h"
+#include "LuxInputHandler.h"
 #include "impl/ImGuiDebugMenu.h"
+#include "impl/ImGuiConsole.h"
 #include "LuxHelpFuncs.h"
 
 #include "LuxPlayerState_Normal.h"
@@ -532,7 +534,14 @@ void cLuxPlayer::OnDraw(float afFrameTime)
 	// If this is P1 and coop is active, also draw P2's HUD during the same draw phase
 	if(!IsPlayer2() && gpBase->mpPlayer2 && gpBase->mpMapHandler->GetCoopMode())
 	{
-		gpBase->mpPlayer2->OnDraw(afFrameTime);
+		//Not while Player 2 has a menu open on their half. Their journal is drawn
+		//in that same rect and their HUD would sit on top of it -- and while a menu
+		//is up this whole function is being called by cLuxInputHandler on the free
+		//player's behalf, so chaining here would draw the menu owner's HUD too.
+		cLuxPlayer *pOwner = gpBase->mpInputHandler->GetCoopMenuOwner();
+
+		if(pOwner == NULL || pOwner->IsPlayer2()==false)
+			gpBase->mpPlayer2->OnDraw(afFrameTime);
 	}
 }
 
@@ -1446,9 +1455,29 @@ void cLuxPlayer::UpdateNoclip(float afTimeStep)
 {
 	if (!mbNoclipEnabled) return;
 
+	//////////////////////////////////////////////////////////////////////////
+	// Player 1's keyboard, not "the" keyboard.
+	//
+	// Every read below used iKeyboard::KeyIsDown, which is SDL's single logical
+	// key state for the whole machine. With Player 2 on a second keyboard that is
+	// simply the wrong question: their W was Player 1's W, so Player 2 walking
+	// around flew Player 1 across the level for as long as noclip was on.
+	// cLuxInputHandler::P1KeyIsDown asks raw input for "any device that is not
+	// Player 2's", and falls back to SDL when there is no second keyboard.
+	//
+	// Only Player 1 ever gets here in practice -- noclip is enabled on
+	// gpBase->mpPlayer alone -- which is exactly why the P1 filter is the right
+	// one and not a per-player lookup.
+	cLuxInputHandler *pInput = gpBase->mpInputHandler;
+	if(pInput == NULL) return;
+
+	//The overlay is modal. cLowLevelInputSDL swallows SDL key events for it, but
+	//raw input is a separate stream that never passed through that gate -- so
+	//typing "noclip" into the console flew the player forwards on the W.
+	if(cImGuiConsole::IsVisible() || ImGuiDebugMenu::IsVisible()) return;
+
 	// ----- V key toggle (edge-detect: activate on key-down) -----
-	iKeyboard* pKB = gpBase->mpEngine->GetInput()->GetKeyboard();
-	bool bVDown = pKB->KeyIsDown(eKey_V);
+	bool bVDown = pInput->P1KeyIsDown(eKey_V);
 
 	if (bVDown && !mbNoclipKeyWasDown)
 	{
@@ -1461,11 +1490,11 @@ void cLuxPlayer::UpdateNoclip(float afTimeStep)
 	// ----- Determine speed from Shift / Ctrl -----
 	float fSpeed = mfNoclipSpeed;
 
-	if (pKB->KeyIsDown(eKey_LeftShift) || pKB->KeyIsDown(eKey_RightShift))
+	if (pInput->P1KeyIsDown(eKey_LeftShift) || pInput->P1KeyIsDown(eKey_RightShift))
 	{
 		fSpeed *= mfNoclipFastMul;
 	}
-	if (pKB->KeyIsDown(eKey_LeftCtrl) || pKB->KeyIsDown(eKey_RightCtrl))
+	if (pInput->P1KeyIsDown(eKey_LeftCtrl) || pInput->P1KeyIsDown(eKey_RightCtrl))
 	{
 		fSpeed *= mfNoclipSlowMul;
 	}
@@ -1477,11 +1506,11 @@ void cLuxPlayer::UpdateNoclip(float afTimeStep)
 
 	cVector3f vMove(0, 0, 0);
 
-	if (pKB->KeyIsDown(eKey_W))     vMove += vForward;
-	if (pKB->KeyIsDown(eKey_S))     vMove -= vForward;
-	if (pKB->KeyIsDown(eKey_D))     vMove += vRight;
-	if (pKB->KeyIsDown(eKey_A))     vMove -= vRight;
-	if (pKB->KeyIsDown(eKey_Space)) vMove += vUp;
+	if (pInput->P1KeyIsDown(eKey_W))     vMove += vForward;
+	if (pInput->P1KeyIsDown(eKey_S))     vMove -= vForward;
+	if (pInput->P1KeyIsDown(eKey_D))     vMove += vRight;
+	if (pInput->P1KeyIsDown(eKey_A))     vMove -= vRight;
+	if (pInput->P1KeyIsDown(eKey_Space)) vMove += vUp;
 
 	if (vMove.Length() > 0.0001f)
 	{

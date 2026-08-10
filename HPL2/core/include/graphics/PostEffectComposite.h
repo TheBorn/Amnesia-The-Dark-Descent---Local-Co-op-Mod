@@ -55,11 +55,23 @@ namespace hpl {
 		bool HasActiveEffects();
 
 		float GetCurrentFrameTime(){ return mfCurrentFrameTime;}
+
+		/**
+		 * Put a finished texture on the render target: no program, no blending,
+		 * the viewport's own rect.
+		 *
+		 * Public because iPostEffect::Render needs the SAME one. An effect whose
+		 * shader must not draw straight to an off-centre viewport renders into a
+		 * temp buffer and finishes here instead, and a chain whose length changes
+		 * from frame to frame takes that path on some frames and not others. If
+		 * this copy and that one differed by so much as a leftover texture unit,
+		 * the two would alternate on screen -- which is a flicker.
+		 */
+		void CopyToFrameBuffer(iTexture *apOutputTexture);
 	
 	private:
 		void BeginRendering(float afFrameTime, cFrustum *apFrustum, iTexture *apInputTexture, cRenderTarget *apRenderTarget);
 		void EndRendering();
-		void CopyToFrameBuffer(iTexture *apOutputTexture);
 
 		tPostEffectMap m_mapPostEffects;
 		std::vector<iPostEffect*> mvPostEffects;

@@ -93,18 +93,25 @@ namespace hpl {
 		iTexture *pOutputTex = RenderEffect(apInputTexture, apFinalTempBuffer);
 		
 		//////////////////////////
-		// If last effect and final frame buffer has not been called, copy o rendertarget
+		// If last effect and final frame buffer has not been called, copy to rendertarget
+		//
+		// cPostEffectComposite::CopyToFrameBuffer, not a second copy written out
+		// here. This used to be its own five lines, and they were not the same five:
+		// no depth state, no alpha or channel mode, no flat projection, and -- the
+		// one that showed -- no SetTextureRange(NULL, 1), so whatever the effect had
+		// left on texture units 1 and up was still bound while this drew with no
+		// program at all. Bloom leaves unit 1 holding its input; the sanity wave
+		// clears it. So the picture depended on which effect happened to be last,
+		// and the chain changes length whenever an effect comes or goes -- alternate
+		// frames, alternate result, a flicker on whichever screen takes this path.
+		//
+		// Nobody noticed for fifteen years because nothing in the game reached here:
+		// every effect claimed the final buffer itself. Routing an off-centre
+		// viewport's last effect through a temp buffer (see SetFinalFrameBuffer) is
+		// what started using it every frame.
 		if(mbIsLastEffect && mbFinalFrameBufferUsed == false)
 		{
-			mpCurrentComposite->SetProgram(NULL);
-			mpCurrentComposite->SetBlendMode(eMaterialBlendMode_None);
-
-			cRenderTarget *pRenderTarget = mpCurrentComposite->GetCurrentRenderTarget();
-			mpCurrentComposite->SetFrameBuffer(pRenderTarget->mpFrameBuffer, true);
-
-			mpCurrentComposite->SetTexture(0, pOutputTex);
-
-			DrawQuad(0, 1, pOutputTex, true);
+			mpCurrentComposite->CopyToFrameBuffer(pOutputTex);
 		}
 
 		return pOutputTex;
@@ -146,20 +153,104 @@ namespace hpl {
 
 	//-----------------------------------------------------------------------
 
+	bool iPostEffect::TargetIsWholeScreenBuffer()
+	{
+		cRenderTarget *pRenderTarget = mpCurrentComposite ?
+									  mpCurrentComposite->GetCurrentRenderTarget() : NULL;
+		if(pRenderTarget==NULL) return true;
+
+		if(pRenderTarget->mvPos.x != 0 || pRenderTarget->mvPos.y != 0) return false;
+
+		//A negative size means "all of it", which is the single-player viewport.
+		const cVector2l vScreen = mpLowLevelGraphics->GetScreenSizeInt();
+
+		if(pRenderTarget->mvSize.x >= 0 && pRenderTarget->mvSize.x != vScreen.x) return false;
+		if(pRenderTarget->mvSize.y >= 0 && pRenderTarget->mvSize.y != vScreen.y) return false;
+
+		return true;
+	}
+
+	//-----------------------------------------------------------------------
+
 	void iPostEffect::SetFinalFrameBuffer(iFrameBuffer *apOutputBuffer)
 	{
-		mbFinalFrameBufferUsed = true;
-
 		///////////////////////
 		// Set the frame buffer
-		if(mbIsLastEffect)
+		if(mbIsLastEffect && TargetIsWholeScreenBuffer())
 		{
+			mbFinalFrameBufferUsed = true;
+
 			cRenderTarget *pRenderTarget = mpCurrentComposite->GetCurrentRenderTarget();
 			mpCurrentComposite->SetFrameBuffer(pRenderTarget->mpFrameBuffer, true);
 		}
+		else if(mbIsLastEffect)
+		{
+			//////////////////////////////////////////////////////////////////////////
+			// AN EFFECT SHADER NEVER DRAWS STRAIGHT TO AN OFF-CENTRE VIEWPORT.
+			//
+			// This is the co-op insanity smear, and the reason it was the sanity wave
+			// and nothing else: the LAST effect in the chain is the one that blits to
+			// the screen, and with the wave switched off that was bloom, whose shader
+			// only ever touches gl_TexCoord. The wave's does screen-space maths -- an
+			// amplitude map and a zoom map looked up by where the pixel is on the
+			// screen -- and a fragment shader gets those coordinates from the WINDOW,
+			// not from its viewport.
+			//
+			// iLowLevelGraphics::mvScreenSize is fixed at the size the window was
+			// CREATED at and never updated (see cLuxMapHandler::GetSplitViewportRects,
+			// which says so). In dual-monitor the window is twice that wide and Player
+			// 2's viewport starts at x = one whole screen -- so every one of their
+			// pixels asked those maps about a position past the right-hand edge of
+			// everything, got the clamped edge back, and the offset that came out of it
+			// pushed the source sample clean off the texture. Clamp-to-edge on a rect
+			// texture then repeats one row down the screen: the horizontal smear.
+			//
+			// Player 1 never saw it in the same mode -- their viewport IS at the origin
+			// at exactly screen size -- and single player cannot see it at all, which is
+			// why the effect has been correct for fifteen years.
+			//
+			// So: render the pass into the temp buffer like any intermediate, full
+			// buffer at the origin, where the window and the viewport agree -- and
+			// leave mbFinalFrameBufferUsed false, which makes Render() finish the job
+			// with its plain program-less copy into the viewport's rect. One extra
+			// full-screen blit, and no effect shader ever has to know where on the
+			// desktop it landed.
+			//
+			// Deliberately general, not a special case for the wave: radial blur pulls
+			// toward a screen centre and sepia is a lookup, so the next shader anybody
+			// adds gets this for free rather than as a bug report.
+			SetFrameBuffer(apOutputBuffer);
+		}
 		else
 		{
-			mpCurrentComposite->SetFrameBuffer(apOutputBuffer, true);
+			//////////////////////////////////////////////////////////////////////////
+			// false, NOT true -- the other half of the split-screen post effect bug.
+			//
+			// apOutputBuffer is an INTERMEDIATE, one of cPostEffectComposite's two
+			// ping-pong temp buffers, and the next effect in the chain reads it back
+			// whole, from the origin -- GetScaledUVRange spans the entire texture.
+			// So this pass has to FILL it from the origin.
+			//
+			// true bound the viewport's ON-SCREEN rect instead. Single player never
+			// noticed, because there that rect IS the whole buffer and the two are the
+			// same thing. In co-op they are not: Player 2's rect starts at half the
+			// window (a whole monitor's width in dual-monitor), so every non-final
+			// effect rasterised its output into the far side of a buffer that the
+			// following effect then sampled from zero. What came back was the part of
+			// that temp buffer nobody had written this pass -- whatever the renderer
+			// last left there. That buffer is not idle either: it is index 0 at screen
+			// size, the very same object cRendererDeferred takes for
+			// mpRefractionTexture and mpEdgeSmooth_TempAccum. So Player 2's screen was
+			// a stale copy of the scene, stretched across the half that was written
+			// and smeared over the half that was not -- present only while post
+			// processing was on, and changing character with whatever the renderer had
+			// dropped in that buffer that frame, which is what made it look occasional.
+			//
+			// iPostEffect::SetFrameBuffer above already passes false for exactly this
+			// reason. This was the same call it was fixed for, one function down, and
+			// it is the one every effect's main output pass actually goes through.
+			mbFinalFrameBufferUsed = true;
+			mpCurrentComposite->SetFrameBuffer(apOutputBuffer, false);
 		}
 	}
 

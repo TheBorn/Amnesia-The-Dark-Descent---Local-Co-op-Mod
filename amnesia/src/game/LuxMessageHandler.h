@@ -54,9 +54,30 @@ public:
 	*/
 	void SetMessage(const tWString& asText, float afTime);
 	void SetMessage(const tWString& asText, float afTime, int alPlayerIndex);
+
+	/**
+	 * The same, but for something the PAIR are being told rather than one of
+	 * them: an item picked up out of the world, an examine area, a line the
+	 * story itself put on screen.
+	 *
+	 * In FORCED co-op that draws on both halves. A story written for co-op
+	 * decides for itself who is told what, and single player has only one
+	 * screen, so in both of those this is exactly SetMessage.
+	 *
+	 * Deliberately NOT what the ordinary SetMessage does. The messages that
+	 * stay with one player are the ones that answer something they just tried
+	 * -- a locked door, an empty barrel, a bag with no room, an item that does
+	 * not work here. Those are feedback on their own action, and putting them
+	 * on the other player's screen is telling them about a failure they had
+	 * nothing to do with.
+	 */
+	void SetMessageForBoth(const tWString& asText, float afTime);
 	bool IsMessageActive(){ return mfMessageTime>0; }
 
 	void OnDraw(float afFrameTime);
+
+	/** True when a message the pair share should be drawn on both halves. */
+	bool CoopMessageGoesToBoth();
 
 	void DoAction(eLuxPlayerAction aAction, bool abPressed);
 
@@ -95,6 +116,11 @@ private:
 	float mfMessageAlpha;
 	float mfMessageTime;
 	int mlMessagePlayerIndex;  // 0 = P1, 1 = P2
+
+	//Set by SetMessageForBoth, cleared by every other path into SetMessage, so a
+	//shared line cannot outlive itself and put the next private one on both
+	//screens.
+	bool mbMessageOnBothPlayers;
 
 	bool mbQuestMessageActive;
 	float mfQuestMessageAlpha;

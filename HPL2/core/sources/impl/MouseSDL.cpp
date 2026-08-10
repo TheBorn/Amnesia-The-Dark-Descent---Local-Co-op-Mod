@@ -27,6 +27,8 @@
 
 #include "graphics/LowLevelGraphics.h"
 #include "impl/LowLevelInputSDL.h"
+#include "impl/ImGuiConsole.h"
+#include "impl/ImGuiDebugMenu.h"
 #include "math/Math.h"
 
 #include "system/LowLevelSystem.h"
@@ -168,6 +170,31 @@ namespace hpl {
 		
 		int lX,lY; 
 		SDL_GetRelativeMouseState(&lX, &lY);
+
+		//////////////////////////////////////////////////////////////////////
+		// Taken and thrown away while the console or the debug menu is up.
+		//
+		// cLowLevelInputSDL already drops mouse EVENTS for the overlay -- the
+		// overlay is modal or it is not. This line is not an event read: it polls
+		// SDL directly, so the motion arrived anyway and the player carried on
+		// looking around while typing into the console.
+		//
+		// In co-op it is worse than untidy. The overlay turns relative mouse mode
+		// off, and SDL unregisters its raw mouse input along with it -- so Player
+		// 2's share of this total can no longer be measured, and the subtraction
+		// that normally keeps their mouse out of Player 1's head has nothing to
+		// subtract. Player 2 aiming turned Player 1 around, for exactly as long as
+		// the debug menu was open.
+		//
+		// Still READ, never skipped: SDL accumulates relative motion whether or
+		// not anybody asks for it, so leaving it would hand the whole stack of it
+		// to Player 1 in one jump the moment the overlay closed.
+		if(cImGuiConsole::IsVisible() || ImGuiDebugMenu::IsVisible())
+		{
+			lX = 0;
+			lY = 0;
+		}
+
 		mvMouseRelPos = cVector2l(lX,lY);
 
 		

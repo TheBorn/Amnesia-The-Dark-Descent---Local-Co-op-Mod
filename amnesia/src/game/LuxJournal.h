@@ -160,6 +160,7 @@ public:
 	void OnDraw(float afFrameTime);
 
 	cGuiSet* GetSet() { return mpGuiSet; }
+	cViewport* GetViewport(){ return mpViewport; }
 
 	void ExitPressed(bool abInstantExit);
 
@@ -183,6 +184,41 @@ public:
 	 */
 	void SetShowOnBothPlayers(bool abX){ mbShowOnBothPlayers = abX; }
 	bool GetShowOnBothPlayers(){ return mbShowOnBothPlayers; }
+
+	/**
+	 * Coop: both players are STOPPED for this one, not merely both shown it.
+	 *
+	 * ShowOnBothPlayers is about WHERE it draws. This is about whether the world
+	 * keeps running underneath. They travel together for a note found in the
+	 * world -- nobody should be fighting a Grunt while their partner reads --
+	 * and apart for anything opened from the journal, which never stops anyone.
+	 */
+	void SetPauseBothPlayers(bool abX){ mbPauseBothPlayers = abX; }
+	bool GetPauseBothPlayers(){ return mbPauseBothPlayers; }
+
+	/**
+	 * The level editor's "ReadByBoth" flag on the note or diary about to be
+	 * picked up, handed over one pickup at a time.
+	 *
+	 * A latch rather than a parameter because the note is created deep inside
+	 * cLuxItemType_Note::BeforeAddItem, three calls below the prop that knows the
+	 * answer, and every one of those signatures is also used by the script
+	 * AddNote() where there is no prop at all. Consumed on read, so a scripted
+	 * note that follows a picked-up one cannot inherit its flag.
+	 */
+	/**
+	 * What the last note or diary picked up in the WORLD decided, in words.
+	 *
+	 * Latched rather than read live because every flag involved is cleared the
+	 * moment the journal closes -- so by the time anyone can look at a readout,
+	 * the evidence is gone. This survives.
+	 */
+	void SetLastNoteDecision(const tString& asX){ msLastNoteDecision = asX; }
+	const tString& GetLastNoteDecision(){ return msLastNoteDecision; }
+
+	void SetNextNoteReadByBoth(bool abX){ mbNextNoteReadByBoth = abX; }
+	bool ConsumeNextNoteReadByBoth(){ bool bX = mbNextNoteReadByBoth; mbNextNoteReadByBoth = false; return bX; }
+
 	void SetOpenedFromInventory(bool abX){ mbOpenedFromInventory = abX;}
 
     cLuxNote* AddNote(const tString& asNameAndTextEntry, const tString& asImage);
@@ -193,6 +229,20 @@ public:
 	cLuxQuestNote* GetQuestNote(const tString& asName);
 
 	void ChangeState(eLuxJournalState aState);
+
+	/**
+	 * Coop: turn the page of an open note WITHOUT a pointer.
+	 *
+	 * There is one GUI cursor and, on a note both players are reading, two mice.
+	 * Letting both push it means each of them drags it off whatever the other was
+	 * about to click. So the pointer stays Player 1's and the second player turns
+	 * the page from their own device through here instead -- which is also the
+	 * only way a player on a pad has ever been able to.
+	 *
+	 * Past the last page it closes the note, because that is what turning the page
+	 * means there, and closing is shared too.
+	 */
+	void CoopAdvanceNotePage();
 
 	void OpenNote(cLuxNote *apNote, bool abNarration);
 	cLuxNote* GetNote(int alIdx){ return mvNotes[alIdx];}
@@ -321,6 +371,9 @@ private:
 	cViewport *mpViewport;
 	cLuxPlayer *mpActivePlayer;
 	bool mbShowOnBothPlayers;
+	bool mbPauseBothPlayers;
+	bool mbNextNoteReadByBoth;
+	tString msLastNoteDecision;
 	cGuiSkin *mpGuiSkin;
 	cGuiSet *mpGuiSet;
 

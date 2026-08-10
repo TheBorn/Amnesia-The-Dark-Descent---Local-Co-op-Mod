@@ -123,6 +123,18 @@ namespace hpl {
 		 */
 		void SetFinalFrameBuffer(iFrameBuffer *apOutputBuffer);
 
+		/**
+		 * Is the on-screen destination the whole screen-sized buffer, starting at
+		 * the origin? True for single player and for a co-op viewport that happens
+		 * to sit at 0,0 at full size; false for a split half or a second monitor.
+		 *
+		 * When it is false, an effect shader must not be the one drawing to the
+		 * screen -- a fragment shader reads its position from the window, not from
+		 * the viewport, and screen-space maths comes out a whole screen wrong. See
+		 * SetFinalFrameBuffer.
+		 */
+		bool TargetIsWholeScreenBuffer();
+
 		void GetTextureUvPosAndSize(const cVector2f& avTexSize,cVector2f& avUvPos,  cVector2f& avUvSize);
 
 		void SetFrameBuffer(iFrameBuffer *apFrameBuffer);

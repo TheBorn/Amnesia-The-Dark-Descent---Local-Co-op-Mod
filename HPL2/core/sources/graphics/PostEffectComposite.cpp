@@ -45,9 +45,24 @@ namespace hpl {
 		SetupRenderFunctions(mpGraphics->GetLowLevel());
 
 		cVector2l vSize = mpLowLevelGraphics->GetScreenSizeInt();
+
+		//////////////////////////////////////////////////////////////////////
+		// Index 2 and 3, NOT 0 and 1.
+		//
+		// cGraphics::GetTempFrameBuffer keys on (size, format, index), so asking
+		// for screen-size RGBA index 0 hands back the very same object
+		// cRendererDeferred took for mpRefractionTexture and
+		// mpEdgeSmooth_TempAccum. The post chain's ping-pong buffer and the
+		// renderer's mid-frame scratch copy were one texture.
+		//
+		// Nothing reads one expecting the other TODAY -- the world render finishes
+		// before the chain starts -- but the two interleave inside a single
+		// viewport and the only thing keeping them apart is call order, which is
+		// not an invariant anybody stated. It cost one aliasing bug already.
+		// Two indices nothing else uses cost 2 buffers and end the question.
 		for(int i=0; i<2; ++i)
 		{
-			mpFinalTempBuffer[i] = mpGraphics->GetTempFrameBuffer(vSize,ePixelFormat_RGBA,i);
+			mpFinalTempBuffer[i] = mpGraphics->GetTempFrameBuffer(vSize,ePixelFormat_RGBA,2+i);
 		}
 	}
 

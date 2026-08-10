@@ -32,11 +32,17 @@ namespace hpl {
 
 	//-----------------------------------------------------------------------
 
+	int iRenderableContainerNode::mlNodeDestroyCount = 0;
+
+	//-----------------------------------------------------------------------
+
 	cVisibleRCNodeTracker::cVisibleRCNodeTracker()
 	{
 		mlCurrentVisibleNodeSet =0;
 
 		mlFrameCounter =0;
+
+		mlNodeDestroyCountAtLastUse = iRenderableContainerNode::GetNodeDestroyCount();
 	}
 
 	//-----------------------------------------------------------------------
@@ -70,6 +76,26 @@ namespace hpl {
 		mlFrameCounter =0;
 
 		for(int i=0; i<2; i++) m_setVisibleNodes[i].clear();
+
+		mlNodeDestroyCountAtLastUse = iRenderableContainerNode::GetNodeDestroyCount();
+	}
+
+	//-----------------------------------------------------------------------
+
+	void cVisibleRCNodeTracker::ValidateAgainstNodeDestruction()
+	{
+		const int lCount = iRenderableContainerNode::GetNodeDestroyCount();
+		if(lCount == mlNodeDestroyCountAtLastUse) return;
+
+		//Something this tracker may be holding has been freed. Both sets go, not
+		//just the current one -- WasNodeVisible reads the PREVIOUS set, and that is
+		//precisely the one carrying the stale pointers.
+		//
+		//The cost of being wrong here is one frame in which every node counts as
+		//not previously visible, so CHC queries instead of assuming. That is a
+		//frame of slightly more occlusion work. The cost of NOT doing it is reading
+		//freed memory and believing the answer.
+		Reset();
 	}
 
 	//-----------------------------------------------------------------------

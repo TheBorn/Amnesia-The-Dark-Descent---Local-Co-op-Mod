@@ -20,6 +20,7 @@
 #include "LuxMessageHandler.h"
 
 #include "LuxMapHandler.h"
+#include "impl/ImGuiDebugMenu.h"
 #include "LuxInputHandler.h"
 #include "LuxHelpFuncs.h"
 
@@ -92,6 +93,7 @@ void cLuxMessageHandler::Reset()
 	mfMessageAlpha =0;
 	mfMessageTime = 0;
 	mlMessagePlayerIndex = 0;
+	mbMessageOnBothPlayers = false;
 }
 
 //-----------------------------------------------------------------------
@@ -166,10 +168,39 @@ void cLuxMessageHandler::SetMessage(const tWString& asText, float afTime, int al
 	mfMessageAlpha =0.0f;
 	mfMessageTime = afTime <=0 ? gpBase->mpHelpFuncs->GetStringDuration(sParsedText) : afTime;
 	mlMessagePlayerIndex = alPlayerIndex;
+
+	//Cleared here rather than only set in SetMessageForBoth: every path into a
+	//message ends up in this function, so this is the one place that cannot be
+	//forgotten. A stale true would put the next private message on both screens.
+	mbMessageOnBothPlayers = false;
 	
 	mvMessageRows.clear();
 
 	mpFont->GetWordWrapRows(700,mvFontSize.y+2,mvFontSize, sParsedText, &mvMessageRows);
+}
+
+//-----------------------------------------------------------------------
+
+bool cLuxMessageHandler::CoopMessageGoesToBoth()
+{
+	if(gpBase->mpMapHandler->GetCoopMode()==false) return false;
+
+	//FORCED co-op only. A story built for co-op has its own idea of who is told
+	//what and says so with SetMessage1/SetMessage2; forcing a second copy onto
+	//the other half would be overruling it. Forced co-op has no such author --
+	//the story was written for one player and one screen, so anything it says is
+	//meant for whoever is playing, which here is both of them.
+	return ::ImGuiDebugMenu::IsNativeCoopStory()==false;
+}
+
+//-----------------------------------------------------------------------
+
+void cLuxMessageHandler::SetMessageForBoth(const tWString& asText, float afTime)
+{
+	SetMessage(asText, afTime);
+
+	//After, not before: SetMessage clears the flag on its way through.
+	mbMessageOnBothPlayers = CoopMessageGoesToBoth();
 }
 
 //-----------------------------------------------------------------------
@@ -298,10 +329,21 @@ void cLuxMessageHandler::DrawQuestAdded()
 	cVector3f vPos(vPos2D.x, vPos2D.y, 10);
 	vPos -= gpBase->mvHudVirtualStartPos;//minus since coordinates are negative!
 
+	//The quest log is one shared list, so a quest being added happened to the
+	//pair, not to whoever was standing closest. Player 2 never saw this icon at
+	//all -- mpGameHudSet is on Player 1's viewport alone.
+	cGuiSet *pAlsoSet = CoopMessageGoesToBoth() ? gpBase->mpMapHandler->GetCoopHudSet() : NULL;
+
 	gpBase->mpGameHudSet->DrawGfx(mpQuestAddedIcon, vPos, -1, cColor(1, mfQuestMessageAlpha));
+	if(pAlsoSet)
+		pAlsoSet->DrawGfx(mpQuestAddedIcon, vPos, -1, cColor(1, mfQuestMessageAlpha));
 	
 	for(int i=0; i<2; ++i)
+	{
 		gpBase->mpGameHudSet->DrawGfx(mpQuestAddedIcon, vPos+cVector3f(0,0,1), -1, cColor(mfQuestMessageAlpha*mQuestOscill.val, 1), eGuiMaterial_Additive);
+		if(pAlsoSet)
+			pAlsoSet->DrawGfx(mpQuestAddedIcon, vPos+cVector3f(0,0,1), -1, cColor(mfQuestMessageAlpha*mQuestOscill.val, 1), eGuiMaterial_Additive);
+	}
 }
 
 //-----------------------------------------------------------------------
@@ -316,18 +358,36 @@ void cLuxMessageHandler::DrawMessage()
 		fAlpha = mfMessageAlpha * (1-mfPauseMessageAlpha);
 	}
 
-	// Pick the correct HUD set based on which player triggered the message
+	////////////////////////////////////////////////////////////////////
+	// Whose screen.
+	//
+	// A message the pair share -- an item picked up out of the world, an
+	// examine area, a line the story put on screen -- goes on BOTH halves in
+	// forced co-op. mpGameHudSet is attached to Player 1's viewport alone, so
+	// the second half has to be drawn to explicitly; there is one row list and
+	// one timer behind both, which is right, because it is one message.
+	//
+	// Everything else is still one player's: the locked door they just tried,
+	// the barrel they found empty, the bag with no room in it.
 	cGuiSet *pHudSet = gpBase->mpGameHudSet;
-	if (mlMessagePlayerIndex == 1 && gpBase->mpMapHandler->GetCoopMode())
+	cGuiSet *pAlsoSet = NULL;
+
+	if(gpBase->mpMapHandler->GetCoopMode())
 	{
 		cGuiSet *pCoopSet = gpBase->mpMapHandler->GetCoopHudSet();
-		if (pCoopSet) pHudSet = pCoopSet;
+
+		if(mbMessageOnBothPlayers)				pAlsoSet = pCoopSet;
+		else if(mlMessagePlayerIndex == 1 && pCoopSet)	pHudSet = pCoopSet;
 	}
 	
 	cVector3f vTextPos = cVector3f(400, 345, 4);
 	for(size_t i=0; i<mvMessageRows.size(); ++i)
 	{
 		pHudSet->DrawFont(mvMessageRows[i], mpFont,vTextPos,mvFontSize, cColor(1, fAlpha),eFontAlign_Center);
+
+		if(pAlsoSet)
+			pAlsoSet->DrawFont(mvMessageRows[i], mpFont,vTextPos,mvFontSize, cColor(1, fAlpha),eFontAlign_Center);
+
 		vTextPos.y += mvFontSize.y+2;
 	}
 	

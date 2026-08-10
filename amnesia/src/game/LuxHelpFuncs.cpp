@@ -374,6 +374,39 @@ void cLuxHelpFuncs::RenderBackgroundScreen(bool abDrawFullHUD)
 	pMapHandler->RestoreBackgroundCapture();
 
 	/////////////////////////////////////////////////////////////////////
+	// ...and then say it again, because RestoreBackgroundCapture does not
+	// actually restore what the container set up -- it restores what the
+	// CAPTURE needed, which is a different thing and was written when every
+	// menu was full screen and shared.
+	//
+	// The order is what makes it bite. Opening a menu runs
+	// cLuxMapHandler::OnLeaveContainer FIRST, which decides the layout: for a
+	// journal belonging to Player 2 that means hiding P2's world viewport, so
+	// the journal can draw in its place. THEN cLuxJournal::OnEnterContainer
+	// calls this function for its background image, and the DualP1 restore
+	// switches P2's world viewport straight back on. The co-op viewports are
+	// created at map load and so sit at the END of cScene::mlstViewports, while
+	// the journal's was created at startup and sits near the front -- the list
+	// is walked in order, so P2's world paints over the journal completely.
+	//
+	// Player 1 never saw it because nothing in the restore re-shows P1's
+	// viewport. "I can see my journal, they cannot see theirs" was that,
+	// exactly, and no amount of ownership or input fixing could have touched it.
+	//
+	// Re-asserting is better than teaching the restore about menus: the layout
+	// then has ONE author, and any future capture path is covered by
+	// construction rather than by remembering.
+	{
+		const tString sContainer = gpBase->mpEngine->GetUpdater()->GetCurrentContainerName();
+
+		//Not while the game is still the current container -- a capture taken
+		//before the switch would be handed "Default" and the full-screen-menu
+		//branch would put both halves away for a menu that is not open yet.
+		if(sContainer != "" && sContainer != "Default")
+			pMapHandler->ApplyContainerViewportLayout(sContainer);
+	}
+
+	/////////////////////////////////////////////////////////////////////
 	// CRITICAL: rebind the default framebuffer with an explicit full-screen
 	// pos/size to reset cLowLevelGraphicsSDL's cached mvFrameBufferPos/Size.
 	//

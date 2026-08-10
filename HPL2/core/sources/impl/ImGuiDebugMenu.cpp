@@ -1,4 +1,5 @@
 ﻿#include "impl/ImGuiDebugMenu.h"
+#include "impl/LowLevelInputSDL.h"
 #include "imgui/imgui.h"
 #include "SDL2/SDL.h"
 #include <vector>
@@ -28,6 +29,14 @@ float ImGuiDebugMenu::mfPossessCamDistance        = 2.6f;
 float ImGuiDebugMenu::mfPossessCamHeight          = 1.15f;
 bool  ImGuiDebugMenu::mbAllowEnemyMorph           = false;
 int   ImGuiDebugMenu::mlEnemyMorphRequest         = -1;
+int   ImGuiDebugMenu::mlP2InputSource             = 0;
+void *ImGuiDebugMenu::mpP2RawDevice               = 0;
+void *ImGuiDebugMenu::mpP2RawMouse               = 0;
+bool  ImGuiDebugMenu::mbP2RawMouseUserSet        = false;
+
+int   ImGuiDebugMenu::mlDiagBlackViewportCount     = 0;
+int   ImGuiDebugMenu::mlDiagBlackViewportLastFrame = -1;
+char  ImGuiDebugMenu::msDiagBlackViewport[160]     = {0};
 float ImGuiDebugMenu::mfGunImpactForce            = 5.0f;
 float ImGuiDebugMenu::mfGunDamage                 = 25.0f;
 float ImGuiDebugMenu::mfRenderScale               = 1.0f;
@@ -96,11 +105,23 @@ std::function<int()>      ImGuiDebugMenu::mGetDualMonitorFn  = nullptr;
 std::function<void(int)>  ImGuiDebugMenu::mSetDualMonitorFn  = nullptr;
 
 std::function<int()>      ImGuiDebugMenu::mGetForcedCoopStateFn = nullptr;
+std::function<std::string()> ImGuiDebugMenu::mGetCoopDiagFn = nullptr;
 
 std::function<float(int)>      ImGuiDebugMenu::mGetCoopOptionFn = nullptr;
 std::function<void(int,float)> ImGuiDebugMenu::mSetCoopOptionFn = nullptr;
 
 bool ImGuiDebugMenu::mbCoopCrouchBoost = true;
+
+void ImGuiDebugMenu::SetCoopDiagCallback(std::function<std::string()> aFn)
+{
+    mGetCoopDiagFn = std::move(aFn);
+}
+
+std::string ImGuiDebugMenu::GetCoopDiag()
+{
+    if (!mGetCoopDiagFn) return std::string("(no callback)");
+    return mGetCoopDiagFn();
+}
 
 void ImGuiDebugMenu::SetForcedCoopStateCallback(std::function<int()> aFn)
 {
@@ -169,6 +190,7 @@ void ImGuiDebugMenu::Shutdown()
     mGetDualMonitorFn = nullptr;
     mSetDualMonitorFn = nullptr;
     mGetForcedCoopStateFn = nullptr;
+    mGetCoopDiagFn = nullptr;
     mGetCoopOptionFn = nullptr;
     mSetCoopOptionFn = nullptr;
 }
@@ -964,6 +986,267 @@ void ImGuiDebugMenu::Draw()
         HelpMarker("Height of the point the camera looks at, measured from the\n"
                     "monster's body centre. Raise it for the taller ones.\n\n"
                     "Shared with Enemy Morph below.");
+
+        ImGui::Spacing();
+        ImGui::TextColored(colSectionText, "BLACK FRAME CATCHER");
+        ImGui::Separator();
+        ImGui::Spacing();
+
+        {
+            const int lCount = GetDiagBlackViewportCount();
+
+            if(lCount == 0)
+            {
+                ImGui::TextColored(ImVec4(0.45f, 0.9f, 0.45f, 1.0f),
+                                   "No black viewport frames since reset.");
+            }
+            else
+            {
+                ImGui::TextColored(ImVec4(1.0f, 0.45f, 0.45f, 1.0f),
+                                   "BLACK FRAMES: %d   (last on render frame %d)",
+                                   lCount, GetDiagBlackViewportLastFrame());
+                ImGui::TextColored(ImVec4(1.0f, 0.75f, 0.45f, 1.0f),
+                                   "  %s", GetDiagBlackViewportText());
+            }
+
+            HelpMarker("Counts frames where a VISIBLE viewport drew no world.\n\n"
+                        "That is a black half-screen: the frame was cleared for it,\n"
+                        "the GUI still drew on top, and nothing else did -- which is\n"
+                        "what the flicker looks like.\n\n"
+                        "The line underneath names which viewport, and which of\n"
+                        "renderer / world / camera / frustum came back NULL. All four\n"
+                        "look the same on screen and want different fixes, so the\n"
+                        "number alone is not enough.\n\n"
+                        "If this stays at zero while the screen still flickers, the\n"
+                        "frame IS being drawn and the fault is later -- the swap, the\n"
+                        "encoder, or the display.");
+
+            if(ImGui::Button("Reset black frame counter")) ResetDiagBlackViewport();
+        }
+
+        ImGui::Spacing();
+        ImGui::TextColored(colSectionText, "CO-OP STATE");
+        ImGui::Separator();
+        ImGui::Spacing();
+
+        {
+            const std::string sDiag = GetCoopDiag();
+            ImGui::TextUnformatted(sDiag.c_str());
+            HelpMarker("Everything the co-op menu paths actually decide from, as they\n"
+                        "see it right now. Open a journal or pick up a note and read it\n"
+                        "off: it says which container is live, who owns the menu, where\n"
+                        "its viewport is, and which device handles are paired.");
+        }
+
+        ImGui::Spacing();
+        ImGui::TextColored(colSectionText, "INPUT DEVICES");
+        ImGui::Separator();
+        ImGui::Spacing();
+
+        {
+            hpl::cRawInputWin32 *pRaw = hpl::cRawInputWin32::GetInstance();
+
+            if(pRaw == NULL || pRaw->IsAvailable() == false)
+            {
+                ImGui::TextDisabled("Raw input unavailable (Windows only).");
+                HelpMarker("SDL has one system keyboard and one system cursor, so two\n"
+                            "keyboards look like one to it. Windows raw input tags every\n"
+                            "event with the device that sent it, which is what this reads.");
+            }
+            else
+            {
+                ImGui::Text("Devices seen: %d", (int)pRaw->GetDevices().size());
+                HelpMarker("Type or move a device to make it appear and count up.\n\n"
+                            "INJECTED (SendInput) is the important row: that is what a\n"
+                            "Moonlight or Parsec guest arrives as, because injected input\n"
+                            "has no hardware behind it and so carries no device handle.\n"
+                            "It is what lets a streamed second player be told apart from\n"
+                            "the person sitting at the machine, with nothing to pair.\n\n"
+                            "Anything else on the host that drives SendInput -- macro\n"
+                            "tools, the on-screen keyboard, Steam's controller-as-keyboard\n"
+                            "emulation -- lands in that same row.");
+
+                ImGui::Spacing();
+
+                const std::map<hpl::tRawInputDevice, hpl::cRawInputDeviceState> &mapDevices = pRaw->GetDevices();
+                std::map<hpl::tRawInputDevice, hpl::cRawInputDeviceState>::const_iterator it = mapDevices.begin();
+
+                for(; it != mapDevices.end(); ++it)
+                {
+                    const hpl::cRawInputDeviceState &state = it->second;
+
+                    char sKind[32];
+                    snprintf(sKind, sizeof(sKind), "%s%s",
+                             state.mbIsKeyboard ? "keyboard" : "",
+                             state.mbIsMouse ? (state.mbIsKeyboard ? "+mouse" : "mouse") : "");
+
+                    //Green marks the injected row so it is findable at a glance.
+                    const bool bInjected = (it->first == kRawInputInjectedDevice);
+                    const ImVec4 col = bInjected ? ImVec4(0.45f, 0.9f, 0.45f, 1.0f)
+                                                 : ImVec4(0.85f, 0.85f, 0.85f, 1.0f);
+
+                    char sMotion[32];
+                    sMotion[0] = 0;
+                    if(state.mlRelEventCount || state.mlAbsEventCount)
+                        snprintf(sMotion, sizeof(sMotion), "  rel %d / abs %d",
+                                 state.mlRelEventCount, state.mlAbsEventCount);
+
+                    if(bInjected)
+                        ImGui::TextColored(col, "  INJECTED (SendInput)  %-14s events %d%s",
+                                            sKind, state.mlEventCount, sMotion);
+                    else
+                        ImGui::TextColored(col, "  device %p  %-14s events %d%s",
+                                            it->first, sKind, state.mlEventCount, sMotion);
+                }
+
+                if(mapDevices.empty())
+                    ImGui::TextDisabled("  (press a key or move a mouse)");
+
+                ImGui::Spacing();
+                if(pRaw->GetLastActiveKeyboard() != kRawInputInjectedDevice)
+                    ImGui::Text("Last keyboard used: %p", pRaw->GetLastActiveKeyboard());
+                else
+                    ImGui::Text("Last keyboard used: INJECTED");
+
+                ImGui::Spacing();
+
+                // ---- Player 2's input source ----
+                const char *vSourceNames[] = { "Gamepad", "Second keyboard + mouse" };
+                ImGui::Combo("Player 2 Input", &mlP2InputSource, vSourceNames, 2);
+                HelpMarker("Gamepad is the original and the default.\n\n"
+                            "Second keyboard + mouse gives Player 2 its own keyboard\n"
+                            "and mouse instead, told apart by the device handle above.\n"
+                            "Player 2 uses the SAME layout as Player 1 -- WASD, Shift,\n"
+                            "Ctrl, Space, F, and the mouse -- just on their own device,\n"
+                            "so there is nothing new to learn and nothing to rebind.\n\n"
+                            "Windows only, and no help without co-op switched on.");
+
+                if(mlP2InputSource == 1)
+                {
+                    // Whichever device is picked here is Player 2; everything else
+                    // is Player 1, which is how the two get separated downstream.
+                    //Sets BOTH. A streamed guest's keyboard and mouse arrive with the
+                    //same absent device behind them, so picking one has always meant
+                    //picking the other.
+                    if(ImGui::RadioButton("Streamed guest (injected)",
+                        mpP2RawDevice == kRawInputInjectedDevice && mpP2RawMouse == kRawInputInjectedDevice))
+                    {
+                        mpP2RawDevice = kRawInputInjectedDevice;
+                        mpP2RawMouse  = kRawInputInjectedDevice;
+                        mbP2RawMouseUserSet = true;
+                    }
+                    HelpMarker("For a friend playing over Moonlight or Parsec. Their\n"
+                                "keyboard and mouse arrive injected, with no device\n"
+                                "behind them, so they separate from yours by themselves\n"
+                                "-- nothing to pair, nothing to pick.\n\n"
+                                "Careful if anything else on this PC drives input the\n"
+                                "same way: macro tools, the on-screen keyboard, Steam's\n"
+                                "controller-as-keyboard emulation. Those would be\n"
+                                "Player 2 as well.");
+
+                    const std::map<hpl::tRawInputDevice, hpl::cRawInputDeviceState> &mapDev = pRaw->GetDevices();
+                    std::map<hpl::tRawInputDevice, hpl::cRawInputDeviceState>::const_iterator devIt = mapDev.begin();
+
+                    for(; devIt != mapDev.end(); ++devIt)
+                    {
+                        if(devIt->first == kRawInputInjectedDevice) continue;
+                        if(devIt->second.mbIsKeyboard == false) continue;
+
+                        char sLabel[64];
+                        snprintf(sLabel, sizeof(sLabel), "Keyboard %p", devIt->first);
+
+                        if(ImGui::RadioButton(sLabel, mpP2RawDevice == devIt->first))
+                            mpP2RawDevice = devIt->first;
+                    }
+
+                    if(ImGui::Button("Use last keyboard pressed"))
+                        mpP2RawDevice = pRaw->GetLastActiveKeyboard();
+                    HelpMarker("For two keyboards plugged into this machine: have\n"
+                                "Player 2 press a key, then click this.");
+
+                    //////////////////////////////////////////////////////////////
+                    // The MOUSE, separately.
+                    //
+                    // Raw input gives a keyboard and a mouse two different handles,
+                    // so Player 2's keyboard says nothing about which mouse is
+                    // theirs. Picking only the keyboard left every mouse question --
+                    // motion, buttons, and the subtraction that keeps Player 2's aim
+                    // out of Player 1's view -- answered against a device that has
+                    // never sent a mouse event, which reads as "no mouse at all".
+                    ImGui::Spacing();
+                    ImGui::Text("Player 2 mouse");
+
+                    {
+                        const std::map<hpl::tRawInputDevice, hpl::cRawInputDeviceState> &mapMice = pRaw->GetDevices();
+                        std::map<hpl::tRawInputDevice, hpl::cRawInputDeviceState>::const_iterator mouseIt = mapMice.begin();
+
+                        for(; mouseIt != mapMice.end(); ++mouseIt)
+                        {
+                            if(mouseIt->first == kRawInputInjectedDevice) continue;
+                            if(mouseIt->second.mbIsMouse == false) continue;
+
+                            char sMouseLabel[64];
+                            snprintf(sMouseLabel, sizeof(sMouseLabel), "Mouse %p", mouseIt->first);
+
+                            if(ImGui::RadioButton(sMouseLabel, mpP2RawMouse == mouseIt->first))
+                            {
+                                mpP2RawMouse = mouseIt->first;
+                                mbP2RawMouseUserSet = true;
+                            }
+                        }
+                    }
+
+                    if(ImGui::Button("Use last mouse moved"))
+                    {
+                        mpP2RawMouse = pRaw->GetLastActiveMouse();
+                        mbP2RawMouseUserSet = true;
+                    }
+                    HelpMarker("For two mice plugged into this machine: have Player 2\n"
+                                "move theirs, then click this.\n\n"
+                                "Skip it for a streamed guest -- injected input has no\n"
+                                "device behind it, so the button above already covers\n"
+                                "their mouse as well as their keyboard.");
+
+                    //////////////////////////////////////////////////////////////
+                    // Say so when the mouse has not actually been picked.
+                    //
+                    // Getting this wrong is completely silent: the handle is still a
+                    // valid handle, every mouse question asked of it simply answers
+                    // "no motion, no buttons", and that is indistinguishable from the
+                    // whole feature not working. It cost three rounds of chasing the
+                    // wrong thing, so it is worth a line of red.
+                    {
+                        const std::map<hpl::tRawInputDevice, hpl::cRawInputDeviceState> &mapChk = pRaw->GetDevices();
+                        std::map<hpl::tRawInputDevice, hpl::cRawInputDeviceState>::const_iterator chkIt =
+                            mapChk.find((hpl::tRawInputDevice)mpP2RawMouse);
+
+                        const bool bMouseSeen = (chkIt != mapChk.end() && chkIt->second.mbIsMouse);
+
+                        if(bMouseSeen == false)
+                        {
+                            if(mpP2RawDevice == kRawInputInjectedDevice)
+                            {
+                                ImGui::TextColored(ImVec4(1.0f, 0.75f, 0.3f, 1.0f),
+                                    "Waiting for Player 2 to move their mouse.");
+                            }
+                            else
+                            {
+                                ImGui::TextColored(ImVec4(1.0f, 0.75f, 0.3f, 1.0f),
+                                    "Pairing automatically -- have Player 2 walk and look.");
+                                HelpMarker("A keyboard and a mouse are separate devices with\n"
+                                            "separate handles, so picking Player 2's keyboard\n"
+                                            "says nothing about which mouse is theirs.\n\n"
+                                            "It works this out on its own: the mouse that keeps\n"
+                                            "moving while Player 2's movement keys are held is\n"
+                                            "Player 2's. A few seconds of them walking around is\n"
+                                            "enough. Picking one here by hand overrides it for\n"
+                                            "good.");
+                            }
+                        }
+                    }
+                }
+            }
+        }
 
         ImGui::Spacing();
         ImGui::TextColored(colSectionText, "ENEMY MORPH");

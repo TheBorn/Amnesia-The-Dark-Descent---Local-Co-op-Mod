@@ -143,7 +143,9 @@ bool cLuxArea_Examine::OnInteract(iPhysicsBody *apBody, const cVector3f &avPos)
 			sEntry = msDescInsaneEntry;
 		}
 
-		gpBase->mpMessageHandler->SetMessage(kTranslate(sCat, sEntry), 0);
+		//ForBoth: an examine area is the story describing the room, not an answer
+		//to something one of them tried. Both are standing in it.
+		gpBase->mpMessageHandler->SetMessageForBoth(kTranslate(sCat, sEntry), 0);
 	}
 
 	////////////////////////////////
