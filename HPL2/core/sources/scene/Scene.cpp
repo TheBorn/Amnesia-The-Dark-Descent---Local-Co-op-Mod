@@ -331,13 +331,11 @@ namespace hpl {
 		// frame -- not the ones that are merely visible. A frame where that ends up at
 		// zero is the one that flashes black; see the note after the loop.
 		int lWorldRenders = 0;
-		int lViewportIndex = -1;
 
 		tViewportListIt viewIt = mlstViewports.begin();
 		for(; viewIt != mlstViewports.end(); ++viewIt)
 		{
 			cViewport *pViewPort = *viewIt;
-			++lViewportIndex;
 			if(pViewPort->IsVisible()==false) continue;
 
 			//////////////////////////////////////////////
@@ -380,24 +378,15 @@ namespace hpl {
 				else
 				{
 					////////////////////////////////////////////////////////////
-					// THIS is a black half-screen, and it is where the flicker
-					// lives.
+					// A visible viewport that draws no world is a black half-screen
+					// for this frame: it was cleared to black, one of renderer /
+					// world / camera / frustum came back NULL so nothing filled it,
+					// and the GUI still draws on top -- the HUD floating on nothing.
 					//
-					// The viewport is visible, so the frame was cleared to black
-					// for it, but one of renderer / world / camera came back NULL
-					// so no world is drawn into it -- and the GUI still is, which
-					// is why these frames show the HUD floating on nothing.
-					//
-					// Recorded rather than merely counted: which viewport, and
-					// which of the four went missing. They look identical on
-					// screen and have nothing else in common.
-					::ImGuiDebugMenu::ReportBlackViewportFrame(
-							lViewportIndex,
-							pRenderer != NULL,
-							pViewPort->GetWorld() != NULL,
-							pCamera != NULL,
-							pFrustum != NULL,
-							iRenderer::GetRenderFrameCount());
+					// The catcher that used to count these and name which of the four
+					// went missing has gone with the debug panel that read it. It did
+					// its job: it stayed at zero throughout, which is what ruled this
+					// branch out and sent the search to the post-effect chain.
 
 					//If no renderer sets up viewport do that by our selves.
 					cRenderTarget* pRenderTarget = pViewPort->GetRenderTarget();

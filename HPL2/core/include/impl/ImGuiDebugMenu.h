@@ -334,46 +334,6 @@ public:
     static void AddDiagShadowMapRender()        { ++mlDiagShadowMapRendersAccum; }
 
     /**
-     * BLACK FRAME CATCHER.
-     *
-     * A visible viewport that draws no world is a black half-screen for that
-     * frame. cScene::Render already counted them and threw the number away, so
-     * the flicker has never been anything but "it happens sometimes".
-     *
-     * Reported by REASON, because the four ways to reach it are indistinguishable
-     * on screen and want completely different fixes: a null renderer, a null
-     * world, a null camera or frustum, or a viewport that stayed visible with
-     * nothing behind it. Latched with a running total and the frame it last
-     * happened on, because it lasts one or two frames and no one can read a live
-     * value that fast.
-     */
-    static void ReportBlackViewportFrame(int alViewportIndex, bool abHasRenderer,
-                                         bool abHasWorld, bool abHasCamera, bool abHasFrustum,
-                                         int alFrame)
-    {
-        ++mlDiagBlackViewportCount;
-        mlDiagBlackViewportLastFrame = alFrame;
-
-        snprintf(msDiagBlackViewport, sizeof(msDiagBlackViewport),
-                 "vp %d: renderer %s, world %s, camera %s, frustum %s",
-                 alViewportIndex,
-                 abHasRenderer ? "ok" : "NULL",
-                 abHasWorld    ? "ok" : "NULL",
-                 abHasCamera   ? "ok" : "NULL",
-                 abHasFrustum  ? "ok" : "NULL");
-    }
-
-    static int  GetDiagBlackViewportCount()     { return mlDiagBlackViewportCount; }
-    static int  GetDiagBlackViewportLastFrame() { return mlDiagBlackViewportLastFrame; }
-    static const char* GetDiagBlackViewportText(){ return msDiagBlackViewport; }
-    static void ResetDiagBlackViewport()
-    {
-        mlDiagBlackViewportCount = 0;
-        mlDiagBlackViewportLastFrame = -1;
-        msDiagBlackViewport[0] = 0;
-    }
-
-    /**
      * One line per co-op avatar, pushed by the game layer every frame.
      *
      * Exists because an invisible player has several possible causes that all
@@ -479,9 +439,6 @@ private:
     static void *mpP2RawMouse;
     static bool  mbP2RawMouseUserSet;
 
-    static int  mlDiagBlackViewportCount;
-    static int  mlDiagBlackViewportLastFrame;
-    static char msDiagBlackViewport[160];
     static float mfGunImpactForce;
     static float mfGunDamage;
 

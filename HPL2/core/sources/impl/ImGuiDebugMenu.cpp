@@ -34,9 +34,6 @@ void *ImGuiDebugMenu::mpP2RawDevice               = 0;
 void *ImGuiDebugMenu::mpP2RawMouse               = 0;
 bool  ImGuiDebugMenu::mbP2RawMouseUserSet        = false;
 
-int   ImGuiDebugMenu::mlDiagBlackViewportCount     = 0;
-int   ImGuiDebugMenu::mlDiagBlackViewportLastFrame = -1;
-char  ImGuiDebugMenu::msDiagBlackViewport[160]     = {0};
 float ImGuiDebugMenu::mfGunImpactForce            = 5.0f;
 float ImGuiDebugMenu::mfGunDamage                 = 25.0f;
 float ImGuiDebugMenu::mfRenderScale               = 1.0f;
@@ -988,43 +985,6 @@ void ImGuiDebugMenu::Draw()
                     "Shared with Enemy Morph below.");
 
         ImGui::Spacing();
-        ImGui::TextColored(colSectionText, "BLACK FRAME CATCHER");
-        ImGui::Separator();
-        ImGui::Spacing();
-
-        {
-            const int lCount = GetDiagBlackViewportCount();
-
-            if(lCount == 0)
-            {
-                ImGui::TextColored(ImVec4(0.45f, 0.9f, 0.45f, 1.0f),
-                                   "No black viewport frames since reset.");
-            }
-            else
-            {
-                ImGui::TextColored(ImVec4(1.0f, 0.45f, 0.45f, 1.0f),
-                                   "BLACK FRAMES: %d   (last on render frame %d)",
-                                   lCount, GetDiagBlackViewportLastFrame());
-                ImGui::TextColored(ImVec4(1.0f, 0.75f, 0.45f, 1.0f),
-                                   "  %s", GetDiagBlackViewportText());
-            }
-
-            HelpMarker("Counts frames where a VISIBLE viewport drew no world.\n\n"
-                        "That is a black half-screen: the frame was cleared for it,\n"
-                        "the GUI still drew on top, and nothing else did -- which is\n"
-                        "what the flicker looks like.\n\n"
-                        "The line underneath names which viewport, and which of\n"
-                        "renderer / world / camera / frustum came back NULL. All four\n"
-                        "look the same on screen and want different fixes, so the\n"
-                        "number alone is not enough.\n\n"
-                        "If this stays at zero while the screen still flickers, the\n"
-                        "frame IS being drawn and the fault is later -- the swap, the\n"
-                        "encoder, or the display.");
-
-            if(ImGui::Button("Reset black frame counter")) ResetDiagBlackViewport();
-        }
-
-        ImGui::Spacing();
         ImGui::TextColored(colSectionText, "CO-OP STATE");
         ImGui::Separator();
         ImGui::Spacing();
@@ -1055,67 +1015,19 @@ void ImGuiDebugMenu::Draw()
             }
             else
             {
-                ImGui::Text("Devices seen: %d", (int)pRaw->GetDevices().size());
-                HelpMarker("Type or move a device to make it appear and count up.\n\n"
-                            "INJECTED (SendInput) is the important row: that is what a\n"
-                            "Moonlight or Parsec guest arrives as, because injected input\n"
-                            "has no hardware behind it and so carries no device handle.\n"
-                            "It is what lets a streamed second player be told apart from\n"
-                            "the person sitting at the machine, with nothing to pair.\n\n"
-                            "Anything else on the host that drives SendInput -- macro\n"
-                            "tools, the on-screen keyboard, Steam's controller-as-keyboard\n"
-                            "emulation -- lands in that same row.");
-
-                ImGui::Spacing();
-
-                const std::map<hpl::tRawInputDevice, hpl::cRawInputDeviceState> &mapDevices = pRaw->GetDevices();
-                std::map<hpl::tRawInputDevice, hpl::cRawInputDeviceState>::const_iterator it = mapDevices.begin();
-
-                for(; it != mapDevices.end(); ++it)
-                {
-                    const hpl::cRawInputDeviceState &state = it->second;
-
-                    char sKind[32];
-                    snprintf(sKind, sizeof(sKind), "%s%s",
-                             state.mbIsKeyboard ? "keyboard" : "",
-                             state.mbIsMouse ? (state.mbIsKeyboard ? "+mouse" : "mouse") : "");
-
-                    //Green marks the injected row so it is findable at a glance.
-                    const bool bInjected = (it->first == kRawInputInjectedDevice);
-                    const ImVec4 col = bInjected ? ImVec4(0.45f, 0.9f, 0.45f, 1.0f)
-                                                 : ImVec4(0.85f, 0.85f, 0.85f, 1.0f);
-
-                    char sMotion[32];
-                    sMotion[0] = 0;
-                    if(state.mlRelEventCount || state.mlAbsEventCount)
-                        snprintf(sMotion, sizeof(sMotion), "  rel %d / abs %d",
-                                 state.mlRelEventCount, state.mlAbsEventCount);
-
-                    if(bInjected)
-                        ImGui::TextColored(col, "  INJECTED (SendInput)  %-14s events %d%s",
-                                            sKind, state.mlEventCount, sMotion);
-                    else
-                        ImGui::TextColored(col, "  device %p  %-14s events %d%s",
-                                            it->first, sKind, state.mlEventCount, sMotion);
-                }
-
-                if(mapDevices.empty())
-                    ImGui::TextDisabled("  (press a key or move a mouse)");
-
-                ImGui::Spacing();
-                if(pRaw->GetLastActiveKeyboard() != kRawInputInjectedDevice)
-                    ImGui::Text("Last keyboard used: %p", pRaw->GetLastActiveKeyboard());
-                else
-                    ImGui::Text("Last keyboard used: INJECTED");
-
-                ImGui::Spacing();
+                //The device census that used to live here -- a running count, a row
+                //per device with its event totals, and the last keyboard touched --
+                //is gone. It was there to work out how a streamed second player
+                //arrives and whether raw input could tell the two apart at all.
+                //Both questions are answered and the pickers below are the answer.
 
                 // ---- Player 2's input source ----
                 const char *vSourceNames[] = { "Gamepad", "Second keyboard + mouse" };
                 ImGui::Combo("Player 2 Input", &mlP2InputSource, vSourceNames, 2);
                 HelpMarker("Gamepad is the original and the default.\n\n"
                             "Second keyboard + mouse gives Player 2 its own keyboard\n"
-                            "and mouse instead, told apart by the device handle above.\n"
+                            "and mouse instead, told apart by which device sent each\n"
+                            "keystroke. Pick theirs below.\n"
                             "Player 2 uses the SAME layout as Player 1 -- WASD, Shift,\n"
                             "Ctrl, Space, F, and the mouse -- just on their own device,\n"
                             "so there is nothing new to learn and nothing to rebind.\n\n"
