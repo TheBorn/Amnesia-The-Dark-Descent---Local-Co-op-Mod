@@ -620,7 +620,19 @@ void cImGuiConsole::Draw()
         const int maxLines = 12;
         const int start = (int)mvLog.size() > maxLines ? (int)mvLog.size() - maxLines : 0;
         for (int i = start; i < (int)mvLog.size(); ++i)
+        {
+            ////////////////////////////////////////////////////////////////////
+            // The X, on EVERY line, not just the first.
+            //
+            // SetCursorPos above places one item. ImGui then returns the cursor
+            // to the window's content start for the next one -- and this window
+            // is pushed with WindowPadding (0,0), so that start is x = 0. Every
+            // line after the first began hard against the window edge with its
+            // first glyph shaved off by the clip rect, which is why the opening
+            // line looked right and nothing under it did.
+            ImGui::SetCursorPosX(outlineThick + 8.0f * scale);
             ImGui::TextUnformatted(mvLog[i].c_str());
+        }
     }
 
     ImGui::End();

@@ -7,6 +7,7 @@
 #include <impl/ImGuiManager.h>
 #include "impl/ImGuiConsole.h"
 #include "impl/ImGuiDebugMenu.h"
+#include "impl/LowLevelInputSDL.h"
 
 bool ImGuiManager::mbInitialized = false;
 bool ImGuiManager::mbShowDemo = false;
@@ -102,7 +103,30 @@ void ImGuiManager::ProcessEvent(SDL_Event* apEvent)
     if (mbConsoleEnabled &&
         apEvent->type == SDL_KEYDOWN && apEvent->key.keysym.scancode == SDL_SCANCODE_GRAVE)  
     {  
-        if (apEvent->key.keysym.mod & KMOD_SHIFT)
+        //////////////////////////////////////////////////////////////////
+        // PLAYER 1'S Shift, not the machine's.
+        //
+        // keysym.mod is SDL's modifier state for the whole computer, so a
+        // Player 2 who happens to be SPRINTING is holding Shift as far as this
+        // line is concerned -- and Player 1's console key silently became
+        // Shift+key and toggled the log panel instead of the console bar. That
+        // is "sometimes I cannot open the console": it depended entirely on
+        // whether the other player was running at that moment.
+        bool bShift = (apEvent->key.keysym.mod & KMOD_SHIFT) != 0;
+
+        if (bShift && ImGuiDebugMenu::GetP2UsesRawInput())
+        {
+            hpl::cRawInputWin32 *pRaw = hpl::cRawInputWin32::GetInstance();
+            if (pRaw && pRaw->IsAvailable())
+            {
+                void *pP2 = ImGuiDebugMenu::GetP2RawDevice();
+
+                bShift = pRaw->KeyIsDownExcludingDevice(pP2, hpl::eKey_LeftShift) ||
+                         pRaw->KeyIsDownExcludingDevice(pP2, hpl::eKey_RightShift);
+            }
+        }
+
+        if (bShift)
         {
             // Shift+§ = toggle log panel (BO3-style full console)
             cImGuiConsole::ToggleLog();

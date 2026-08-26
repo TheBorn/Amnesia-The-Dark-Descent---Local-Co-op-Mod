@@ -621,25 +621,41 @@ void cLuxInputHandler::Update(float afTimeStep)
 	UpdateCoopFreeRoamInput();
 
 	//////////////////////////////////////////////////////////////////////
-	// ...and the rest of them, not just their input.
+	// NOTHING ELSE HERE. The free player is already being ticked.
 	//
-	// cLuxPlayer is a "Default" container module. The moment a menu opens the
-	// container is "Journal" or "Inventory" and cLuxPlayer::Update stops being
-	// called for EITHER player -- Player 2 is updated from inside Player 1's
-	// pass, so one container switch takes both. Input reached the free player and
-	// went nowhere, because the move state that turns input into movement was not
-	// running. That is "I cannot look around while they have their journal open",
-	// and it was never an input problem at all.
-	cLuxPlayer *pFree = GetCoopFreeRoamPlayer();
-	if(pFree) pFree->Update(afTimeStep);
+	// cLuxPlayer is a "Default" container module, so opening a menu used to
+	// stop it for BOTH players and this function made up the difference by
+	// calling Update on whoever was still playing.
+	//
+	// That is not the mechanism any more. cLuxJournal::Update and
+	// cLuxInventory::Update now run the whole Default container themselves --
+	// RunMessageOnContainer -- so the world, the map handler and both players
+	// tick from inside the open menu. Two fixes for one problem, and they
+	// overlapped: the free player got Update TWICE every tick.
+	//
+	// Position barely changed, because the body is integrated once by the one
+	// physics step -- but head bob, footstep distance, terror, focus text and
+	// average speed all advanced at double rate. That is the "boost": a player
+	// who sounds and looks like they are sprinting while walking normally.
+	//
+	// The container pass is the one that stays: it ticks the entire world, not
+	// just one player.
 }
 
 //-----------------------------------------------------------------------
 
 void cLuxInputHandler::PostUpdate(float afTimeStep)
 {
+	//////////////////////////////////////////////////////////////////////
+	// PLAYER 1 ONLY, and the asymmetry is real rather than an oversight.
+	//
+	// RunMessageOnContainer sends Update to the Default container and nothing
+	// else, so cLuxPlayer::PostUpdate never runs for Player 1 while a menu is
+	// open -- it needs this. Player 2 does not: cLuxMapHandler::UpdatePlayer2
+	// calls Update AND PostUpdate on them by hand, from inside that same
+	// Default pass, so adding it here would be the second of two.
 	cLuxPlayer *pFree = GetCoopFreeRoamPlayer();
-	if(pFree) pFree->PostUpdate(afTimeStep);
+	if(pFree && pFree->IsPlayer2()==false) pFree->PostUpdate(afTimeStep);
 }
 
 //-----------------------------------------------------------------------

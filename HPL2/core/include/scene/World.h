@@ -26,6 +26,8 @@
 #include "engine/EngineTypes.h"
 #include "scene/SceneTypes.h"
 
+#include <set>
+
 class TiXmlElement;
 
 namespace hpl {
@@ -408,6 +410,24 @@ namespace hpl {
 		tGuiSetEntityList mlstGuiSetEntities;
 		tRopeEntityList mlstRopeEntities;
 		tSoundEntityList mlstSoundEntities;
+
+		//////////////////////////////////////////////////////////////////////////
+		// The same sound entities again, keyed for lookup.
+		//
+		// SoundEntityExists used to walk the list above, and it is asked far more
+		// often than that can stand: cPhysicsBody::Update asks it twice for every
+		// body with a scrape or roll sound, EVERY physics step, and
+		// cSurfaceData::OnSlide and OnRoll ask it once per contact joint. So the
+		// cost was bodies-times-sound-entities per step -- fine while a few things
+		// are moving, and quadratic the moment a barrel bursts or a cabinet is
+		// smashed and a room full of debris is awake and sliding at once. It
+		// settles when the debris does, which is what made it look like the physics
+		// itself going mad rather than a lookup.
+		//
+		// A parallel set rather than replacing the list: the list is ordered and
+		// iterated by everything else here, and creation order is visible in save
+		// games. Both are maintained at the same five places.
+		std::set<cSoundEntity*> m_setSoundEntityLookup;
 		tStartPosEntityList mlstStartPosEntities;
 		tAreaEntityMap m_mapAreaEntities;
 		tFogAreaList mlstFogAreas;

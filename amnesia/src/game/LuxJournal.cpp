@@ -740,9 +740,31 @@ void cLuxJournal::OnDraw(float afFrameTime)
 			cGuiGfxElement *pPointerGfx = mpGuiSet->GetSkin()->GetGfx(eGuiSkinGfx_PointerNormal);
 			if(pPointerGfx)
 			{
-				mpGuiSet->DrawGfx(	pPointerGfx,
-									cVector3f(vP2Pointer.x, vP2Pointer.y, mpGuiSet->GetMouseZ()),
-									pPointerGfx->GetImageSize(), cColor(1,1));
+				////////////////////////////////////////////////////////////
+				// TINTED, so the two pointers are telling apart at a glance.
+				//
+				// Player 1's is the set's own and stays white -- it is the one the
+				// GUI itself is tracking, so it should look like the cursor does
+				// everywhere else in the game. Player 2's is this one, and it is the
+				// one that needs saying.
+				//
+				// Blue rather than a warm colour: a note is parchment, so anything
+				// yellow or orange sinks into the page. Blue is the furthest thing
+				// from that background AND from a white pointer, and it stays
+				// distinguishable for the red-green colour blind, who are most of
+				// the people this could have gone wrong for.
+				//
+				// Drawn twice: a near-black pass one pixel down and across, then the
+				// blue on top. The pointer art is a thin outline and the note is
+				// bright, so without something dark behind it the tinted one is
+				// harder to see than the white one rather than merely different.
+				const cVector3f vP2Pos(vP2Pointer.x, vP2Pointer.y, mpGuiSet->GetMouseZ());
+
+				mpGuiSet->DrawGfx(	pPointerGfx, vP2Pos + cVector3f(1,1,0),
+									pPointerGfx->GetImageSize(), cColor(0,0,0,0.5f));
+
+				mpGuiSet->DrawGfx(	pPointerGfx, vP2Pos,
+									pPointerGfx->GetImageSize(), cColor(0.35f, 0.65f, 1.0f, 1.0f));
 			}
 		}
 	}

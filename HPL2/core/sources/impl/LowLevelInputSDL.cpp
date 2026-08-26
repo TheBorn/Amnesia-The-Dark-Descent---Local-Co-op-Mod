@@ -500,8 +500,15 @@ namespace hpl {
 		if(ImGuiDebugMenu::GetP2UsesRawInput()==false) return false;
 		if(mRawInput.IsAvailable()==false) return false;
 
+		//NO null guard on the handle. kRawInputInjectedDevice IS null -- that is
+		//how a streamed guest arrives, because injected input has no hardware
+		//behind it and so carries no device. Rejecting null therefore switched
+		//this whole filter off in the one setup it was written for, which is why
+		//Player 2's keys still landed in the console over Moonlight.
+		//
+		//Harmless when nothing is injecting: the lookup simply finds no such
+		//device, every key reads as not-down on it, and nothing is filtered.
 		void *pDevice = ImGuiDebugMenu::GetP2RawDevice();
-		if(pDevice==NULL) return false;
 
 		switch(apEvent->type)
 		{

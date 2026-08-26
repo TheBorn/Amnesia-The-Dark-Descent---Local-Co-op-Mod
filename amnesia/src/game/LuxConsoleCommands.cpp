@@ -680,7 +680,7 @@ void Lux_RegisterConsoleCommands()
             else
             {
                 gpBase->mpPlayer->SetNoclipEnabled(true);
-                cImGuiConsole::AddLog("Noclip ENABLED — press V to toggle flight");
+                cImGuiConsole::AddLog("Noclip ENABLED - press V to toggle flight");
                 cImGuiConsole::AddLog("  W/S/A/D = move, Space = up, Shift = fast, Ctrl = slow");
             }
         }

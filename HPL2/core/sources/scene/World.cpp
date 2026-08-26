@@ -212,6 +212,7 @@ namespace hpl {
 
 		//So that bodies can stop sound entities on destruction.
 		STLDeleteAll(mlstSoundEntities);
+		m_setSoundEntityLookup.clear();
 
 	}
 
@@ -984,6 +985,7 @@ namespace hpl {
 		}*/
 
 		mlstSoundEntities.push_back(pSound);
+		m_setSoundEntityLookup.insert(pSound);
 
 		return pSound;
 	}
@@ -1000,6 +1002,7 @@ namespace hpl {
 			if(pSound == apEntity)
 			{
 				mlstSoundEntities.erase(it);
+				m_setSoundEntityLookup.erase(pSound);
 				hplDelete(pSound);
 				//mlstSoundEntityPool.push_back(apEntity);
 				break;
@@ -1031,6 +1034,7 @@ namespace hpl {
 		//Destroy all sound entities
 		STLDeleteAll(mlstSoundEntities);
 		mlstSoundEntities.clear();
+		m_setSoundEntityLookup.clear();
 	}
 
 
@@ -1050,19 +1054,15 @@ namespace hpl {
 
 	bool cWorld::SoundEntityExists(cSoundEntity* apEntity, int alCreationID)
 	{
-		tSoundEntityListIt it= mlstSoundEntities.begin();
-		tSoundEntityListIt end = mlstSoundEntities.end();
-		for(; it != end; ++it)
-		{
-			cSoundEntity *pTestSound = *it;
-			if(*it == apEntity)
-			{
-				if(alCreationID==pTestSound->GetCreationID())	return true;
-				else											return false;
-			}
-		}
+		//////////////////////////////////////////////////////////////////////////
+		// Same answer as the list walk this replaces, in log time instead of
+		// linear: found and the creation ID matches is true, found and it does not
+		// is false, not found at all is false. The ID check is what makes a
+		// recycled pointer safe, so it stays.
+		std::set<cSoundEntity*>::iterator it = m_setSoundEntityLookup.find(apEntity);
+		if(it == m_setSoundEntityLookup.end()) return false;
 
-		return false;
+		return (*it)->GetCreationID() == alCreationID;
 	}
 
 	//-----------------------------------------------------------------------
@@ -1406,6 +1406,7 @@ namespace hpl {
 			if(pSound->IsStopped() && pSound->GetRemoveWhenOver())
 			{
 				it =  mlstSoundEntities.erase(it);
+				m_setSoundEntityLookup.erase(pSound);
 				//mlstSoundEntityPool.push_back(pSound);
 				hplDelete(pSound);
 			}

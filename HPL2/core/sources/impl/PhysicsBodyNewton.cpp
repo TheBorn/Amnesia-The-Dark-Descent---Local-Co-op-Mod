@@ -523,27 +523,60 @@ namespace hpl {
 		NewtonBodyAddForce(apBody, pRigidBody->mvTotalForce.v);
 		NewtonBodyAddTorque(apBody, pRigidBody->mvTotalTorque.v);
 
-		////////////////////////////
-		// Check so that all speeds are within thresholds
+		////////////////////////////////////////////////////////////////////////
+		// Check so that all speeds are within thresholds.
+		//
+		// SqrLength(), not Length(). The variable was always called fSqrSpeed and
+		// was always given the plain speed, and that one wrong call broke the
+		// limiter twice over:
+		//
+		//   The TEST compared a speed against max*max, so a body a level designer
+		//   limited to 10 was left alone until it passed 100 -- the limit was
+		//   effectively squared, and for anything above 1 that means it never
+		//   engages when it was meant to.
+		//
+		//   The CLAMP then divided by sqrt(speed) instead of speed, so what came
+		//   out was not a unit vector times max, it was sqrt(speed)*max. At a
+		//   limit of 10 and a speed of 400 that is 200, not 10. Twenty times the
+		//   limit, and it grows with the square root of whatever it was handed.
+		//
+		// So every prop with MaxLinearSpeed or MaxAngularSpeed set in its .ent --
+		// which is most of the ones meant NOT to fly -- was free to reach hundreds
+		// of units a second and tens of turns a second the moment something dumped
+		// a real impulse into it: a barrel bursting, a monster hitting a cabinet,
+		// a debug gun at force 500. Fast enough to tunnel through the level, and
+		// once a body is outside the box given to NewtonSetWorldSize it is gone --
+		// which is the door that vanishes.
+		//
+		// Both branches had the same line. Both are fixed the same way.
+
 		// Linear
 		if (pRigidBody->mfMaxLinearSpeed > 0)
 		{
+			const float fMax = pRigidBody->mfMaxLinearSpeed;
+
 			cVector3f vVel = pRigidBody->GetLinearVelocity();
-			float fSqrSpeed = vVel.Length();
-			if (fSqrSpeed > pRigidBody->mfMaxLinearSpeed * pRigidBody->mfMaxLinearSpeed)
+			const float fSqrSpeed = vVel.SqrLength();
+
+			if (fSqrSpeed > fMax * fMax)
 			{
-				vVel = (vVel / sqrtf(fSqrSpeed)) * pRigidBody->mfMaxLinearSpeed;
+				//Divided by the real length, so this is a unit vector times the limit.
+				vVel = (vVel / sqrtf(fSqrSpeed)) * fMax;
 				pRigidBody->SetLinearVelocity(vVel);
 			}
 		}
+
 		// Angular
 		if (pRigidBody->mfMaxAngularSpeed > 0)
 		{
+			const float fMax = pRigidBody->mfMaxAngularSpeed;
+
 			cVector3f vVel = pRigidBody->GetAngularVelocity();
-			float fSqrSpeed = vVel.Length();
-			if (fSqrSpeed > pRigidBody->mfMaxAngularSpeed * pRigidBody->mfMaxAngularSpeed)
+			const float fSqrSpeed = vVel.SqrLength();
+
+			if (fSqrSpeed > fMax * fMax)
 			{
-				vVel = (vVel / sqrtf(fSqrSpeed)) * pRigidBody->mfMaxAngularSpeed;
+				vVel = (vVel / sqrtf(fSqrSpeed)) * fMax;
 				pRigidBody->SetAngularVelocity(vVel);
 			}
 		}
