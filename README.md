@@ -35,6 +35,9 @@ Player 1 uses keyboard and mouse. Player 2 uses a gamepad, and has Justine's sou
   **source only** and contains no game data — built binaries are on the Releases page.
 - Visual Studio 2019 (or its Build Tools), x64, I used Rider 2024.
 - A gamepad for Player 2, I used an Xbox One controller, other types like PlayStation might work.
+- An x64 install of OpenAL [oalinst.zip](https://github.com/user-attachments/files/31865558/oalinst.zip)
+- [OpenAL32.zip](https://github.com/user-attachments/files/31865543/OpenAL32.zip) Use this if the one above wasn't enough and put it in your Amnesia directory alongside Lux.exe.
+
 
 ## Building
 
